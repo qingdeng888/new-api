@@ -19,8 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { describe, expect, test } from 'vitest'
 
 import {
+  applyUpstreamAlias,
   deriveModelMappingPairs,
   mergeModelMappingPairs,
+  removeModelMappingPairs,
 } from '../model-mapping-rules'
 
 describe('deriveModelMappingPairs', () => {
@@ -124,5 +126,76 @@ describe('mergeModelMappingPairs', () => {
     expect(mergeModelMappingPairs('{"a":1}', [{ from: 'a', to: 'b' }])).toBe(
       null
     )
+  })
+})
+
+describe('removeModelMappingPairs', () => {
+  test('removes the given request names and keeps the rest', () => {
+    expect(
+      removeModelMappingPairs('{"alias":"upstream","keep":"other"}', ['alias'])
+    ).toBe('{\n  "keep": "other"\n}')
+  })
+
+  test('trims source names and returns an empty document when nothing remains', () => {
+    expect(removeModelMappingPairs('{"alias":"upstream"}', [' alias '])).toBe(
+      ''
+    )
+    expect(removeModelMappingPairs('', ['missing'])).toBe('')
+  })
+
+  test('refuses invalid or non-object documents', () => {
+    expect(removeModelMappingPairs('{not json', ['a'])).toBe(null)
+    expect(removeModelMappingPairs('["a"]', ['a'])).toBe(null)
+    expect(removeModelMappingPairs('{"a":1}', ['a'])).toBe(null)
+  })
+})
+
+describe('applyUpstreamAlias', () => {
+  test('publishes a new alias for the upstream model', () => {
+    expect(applyUpstreamAlias('', 'gpt-4o-all', 'gpt-4o')).toBe(
+      '{\n  "gpt-4o": "gpt-4o-all"\n}'
+    )
+  })
+
+  test('renaming replaces the previous alias entry and keeps other entries', () => {
+    expect(
+      applyUpstreamAlias(
+        '{"old":"gpt-4o-all","o3":"o3-all"}',
+        'gpt-4o-all',
+        'gpt-4o',
+        'old'
+      )
+    ).toBe('{\n  "o3": "o3-all",\n  "gpt-4o": "gpt-4o-all"\n}')
+  })
+
+  test('clearing the alias removes the entry', () => {
+    expect(
+      applyUpstreamAlias('{"alias":"gpt-4o-all"}', 'gpt-4o-all', null, 'alias')
+    ).toBe('')
+    expect(
+      applyUpstreamAlias(
+        '{"alias":"gpt-4o-all","o3":"o3-all"}',
+        'gpt-4o-all',
+        '  ',
+        'alias'
+      )
+    ).toBe('{\n  "o3": "o3-all"\n}')
+  })
+
+  test('an alias equal to the upstream name clears the mapping instead', () => {
+    expect(
+      applyUpstreamAlias(
+        '{"alias":"gpt-4o-all"}',
+        'gpt-4o-all',
+        'gpt-4o-all',
+        'alias'
+      )
+    ).toBe('')
+  })
+
+  test('returns null for invalid documents and passes through untouched ones', () => {
+    expect(applyUpstreamAlias('{not json', 'gpt-4o-all', 'gpt-4o')).toBe(null)
+    expect(applyUpstreamAlias('["a"]', 'gpt-4o-all', null, 'a')).toBe(null)
+    expect(applyUpstreamAlias('', 'gpt-4o-all', null)).toBe('')
   })
 })

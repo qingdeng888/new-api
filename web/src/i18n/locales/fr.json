@@ -5088,7 +5088,6 @@
     "Redemption quota must be positive": "Le quota du code d'échange doit être positif",
     "Redemption successful! Added: {{quota}}": "Échange réussi ! Ajouté : {{quota}}",
     "Redirect {{model}}": "Rediriger {{model}}",
-    "Redirect fetched upstream names to the names your users call.": "Redirigez les noms en amont récupérés vers les noms utilisés par vos utilisateurs.",
     "Redirect panel": "Panneau de redirection",
     "Redirect URL": "URL de redirection",
     "Redirecting to chat page...": "Redirection vers la page de discussion...",
@@ -7370,6 +7369,9 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Set alias": "Définir un alias",
+    "Alias for {{model}}": "Alias pour {{model}}",
+    "Type an alias beside a fetched model to expose it under that name, or open the redirect panel for advanced mapping.": "Saisissez un alias à côté d'un modèle récupéré pour l'exposer sous ce nom ; ouvrez le panneau de redirection pour un mappage avancé."
   }
 }

@@ -177,6 +177,7 @@ import {
   parseModelsString,
   formatModelsArray,
   mergeModelMappingPairs,
+  applyUpstreamAlias,
   type ModelMappingPair,
   extractRedirectModels,
   extractMappingSourceModels,
@@ -487,6 +488,10 @@ export function ChannelMutateDrawer({
   const [redirectSyncModels, setRedirectSyncModels] = useState(true)
   const syncedAliasesRef = useRef(new Set<string>())
   const syncedTargetsRef = useRef(new Set<string>())
+  // Mapping targets the user re-selected by hand after a sync hid them; the
+  // next sync must keep them published (the "keep the original name too"
+  // behavior), instead of silently hiding them again.
+  const pinnedTargetsRef = useRef(new Set<string>())
   const [viewportWide, setViewportWide] = useState(
     () => window.innerWidth >= REDIRECT_PANEL_MIN_VIEWPORT
   )
@@ -1326,9 +1331,22 @@ export function ChannelMutateDrawer({
   // Handle model selection change from MultiSelect
   const handleModelsChange = useCallback(
     (selected: string[]) => {
+      // Selections are authoritative: a mapping target the user (re-)checks
+      // stays published, and unchecking it revokes that.
+      const previous = new Set(
+        parseModelsString(form.getValues('models') || '')
+      )
+      const next = new Set(selected)
+      for (const target of redirectModelList) {
+        if (next.has(target) && !previous.has(target)) {
+          pinnedTargetsRef.current.add(target)
+        } else if (!next.has(target)) {
+          pinnedTargetsRef.current.delete(target)
+        }
+      }
       form.setValue('models', selected.join(','))
     },
-    [form]
+    [form, redirectModelList]
   )
 
   const taskPluginExtensionOptions = useMemo(
@@ -1424,12 +1442,17 @@ export function ChannelMutateDrawer({
           models.push(target)
         }
       }
-      models = models.filter((model) => !targetSet.has(model))
+      models = models.filter(
+        (model) => !targetSet.has(model) || pinnedTargetsRef.current.has(model)
+      )
       for (const alias of aliasSet) {
         if (!models.includes(alias)) models.push(alias)
       }
       syncedAliasesRef.current = aliasSet
       syncedTargetsRef.current = targetSet
+      for (const target of pinnedTargetsRef.current) {
+        if (!targetSet.has(target)) pinnedTargetsRef.current.delete(target)
+      }
       form.setValue('models', formatModelsArray(models))
     },
     [form]
@@ -1452,6 +1475,25 @@ export function ChannelMutateDrawer({
     (result: ModelMappingBatchResult) =>
       applyMappingPairs(result.pairs, result.syncModels),
     [applyMappingPairs]
+  )
+
+  // Publish an upstream model under an alias typed in the upstream model
+  // list: the request name goes into model_mapping and the sync publishes it
+  // while hiding the raw upstream name. Clearing the alias reverses both.
+  const handleUpstreamAliasChange = useCallback(
+    (upstreamModel: string, alias: string | null) => {
+      const current = form.getValues('model_mapping') || ''
+      const next = applyUpstreamAlias(
+        current,
+        upstreamModel,
+        alias,
+        upstreamAliases[upstreamModel]
+      )
+      if (next === null) return
+      form.setValue('model_mapping', next, { shouldDirty: true })
+      syncModelsWithMapping(next)
+    },
+    [form, upstreamAliases, syncModelsWithMapping]
   )
 
   const handlePanelMappingChange = useCallback(
@@ -1480,6 +1522,13 @@ export function ChannelMutateDrawer({
     syncedTargetsRef.current = new Set(
       modelMappingGuardrail.entries
         .filter((entry) => !models.has(entry.target))
+        .map((entry) => entry.target)
+    )
+    // Targets the channel already publishes alongside their aliases were
+    // saved deliberately; keep them on subsequent syncs.
+    pinnedTargetsRef.current = new Set(
+      modelMappingGuardrail.entries
+        .filter((entry) => models.has(entry.target))
         .map((entry) => entry.target)
     )
     setRedirectPanelOpen(true)
@@ -3366,12 +3415,13 @@ export function ChannelMutateDrawer({
                         redirectModels={redirectModelList}
                         redirectSourceModels={redirectModelKeyList}
                         onRedirectModel={handleFetchedRedirect}
+                        onSetAlias={handleUpstreamAliasChange}
                         aliases={upstreamAliases}
                       />
                       <div className='flex flex-wrap items-center justify-between gap-2'>
                         <p className='text-muted-foreground text-xs'>
                           {t(
-                            'Redirect fetched upstream names to the names your users call.'
+                            'Type an alias beside a fetched model to expose it under that name, or open the redirect panel for advanced mapping.'
                           )}
                         </p>
                         <div className='flex flex-wrap gap-2'>

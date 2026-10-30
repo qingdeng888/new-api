@@ -275,3 +275,44 @@ test('long model names remain fully labeled and selectable in a container-respon
   await user.click(checkbox)
   expect(onChange).toHaveBeenCalledWith([model])
 })
+
+test('the inline alias input only renders with a handler and commits typed, cleared, and escaped values', async () => {
+  const user = userEvent.setup()
+  const onSetAlias = vi.fn()
+  const base = {
+    models: ['gpt-one'],
+    selected: [],
+    existingModels: [],
+    showChanges: false,
+    onChange: () => undefined,
+  }
+  const view = render(<UpstreamModelSelection {...base} />)
+  expect(
+    screen.queryByRole('textbox', { name: 'Alias for gpt-one' })
+  ).not.toBeInTheDocument()
+
+  view.rerender(<UpstreamModelSelection {...base} onSetAlias={onSetAlias} />)
+  const input = screen.getByRole('textbox', { name: 'Alias for gpt-one' })
+  expect(input).toHaveValue('')
+  await user.type(input, 'fast-gpt')
+  await user.keyboard('{Enter}')
+  expect(onSetAlias).toHaveBeenCalledWith('gpt-one', 'fast-gpt')
+
+  view.rerender(
+    <UpstreamModelSelection
+      {...base}
+      onSetAlias={onSetAlias}
+      aliases={{ 'gpt-one': 'fast-gpt' }}
+    />
+  )
+  const published = screen.getByRole('textbox', { name: 'Alias for gpt-one' })
+  expect(published).toHaveValue('fast-gpt')
+  await user.clear(published)
+  await user.keyboard('{Enter}')
+  expect(onSetAlias).toHaveBeenCalledWith('gpt-one', null)
+
+  await user.type(published, '-renamed')
+  await user.keyboard('{Escape}')
+  expect(published).toHaveValue('fast-gpt')
+  expect(onSetAlias).toHaveBeenCalledTimes(2)
+})

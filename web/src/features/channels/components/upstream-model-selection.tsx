@@ -51,6 +51,53 @@ function sortedModelCategories(models: string[]): [string, string[]][] {
   })
 }
 
+function AliasInput(props: {
+  model: string
+  alias: string
+  onCommit: (alias: string | null) => void
+}) {
+  const { t } = useTranslation()
+  const id = useId()
+  const [value, setValue] = useState(props.alias)
+  // The published alias can also change from the redirect panel or batch
+  // dialog; follow it while the user is not editing a different value.
+  const [syncedAlias, setSyncedAlias] = useState(props.alias)
+  if (props.alias !== syncedAlias) {
+    setSyncedAlias(props.alias)
+    setValue(props.alias)
+  }
+  const commit = () => {
+    const next = value.trim()
+    if (next === props.alias.trim()) {
+      setValue(props.alias)
+      return
+    }
+    props.onCommit(next || null)
+  }
+  return (
+    <Input
+      id={id}
+      aria-label={t('Alias for {{model}}', { model: props.model })}
+      placeholder={t('Set alias')}
+      spellCheck={false}
+      value={value}
+      onChange={(event) => setValue(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          event.currentTarget.blur()
+        } else if (event.key === 'Escape') {
+          // Revert without blurring: the blur commit reads this render's
+          // `value`, which would still see the edited text.
+          setValue(props.alias)
+        }
+      }}
+      className='h-7 w-28 shrink-0 text-xs'
+    />
+  )
+}
+
 type ModelCategoryProps = {
   name: string
   models: string[]
@@ -58,6 +105,7 @@ type ModelCategoryProps = {
   redirectOnly: Set<string>
   onChange: (models: string[]) => void
   onRedirectModel?: (model: string) => void
+  onSetAlias?: (model: string, alias: string | null) => void
   aliases?: Record<string, string>
 }
 
@@ -130,7 +178,7 @@ function ModelCategory(props: ModelCategoryProps) {
               >
                 {model}
               </Label>
-              {props.aliases?.[model] && (
+              {props.aliases?.[model] && !props.onSetAlias && (
                 <Badge
                   variant='outline'
                   aria-label={t('Published as {{model}}', {
@@ -155,6 +203,13 @@ function ModelCategory(props: ModelCategoryProps) {
                     {t('From model redirect, not yet added to models list')}
                   </TooltipContent>
                 </Tooltip>
+              )}
+              {props.onSetAlias && (
+                <AliasInput
+                  model={model}
+                  alias={props.aliases?.[model] ?? ''}
+                  onCommit={(alias) => props.onSetAlias?.(model, alias)}
+                />
               )}
               {props.onRedirectModel && (
                 <Button
@@ -190,6 +245,8 @@ type UpstreamModelSelectionProps = {
   summaryText?: string
   /** Renders a per-model action that starts a redirect for that model. */
   onRedirectModel?: (model: string) => void
+  /** Renders a per-model inline input that publishes the model under an alias. */
+  onSetAlias?: (model: string, alias: string | null) => void
   /** Upstream model name to the request name it is published under. */
   aliases?: Record<string, string>
 }
@@ -350,6 +407,7 @@ export function UpstreamModelSelection(props: UpstreamModelSelectionProps) {
                 redirectOnly={categorized.redirectOnly}
                 onChange={props.onChange}
                 onRedirectModel={props.onRedirectModel}
+                onSetAlias={props.onSetAlias}
                 aliases={props.aliases}
               />
             ))}
@@ -368,6 +426,7 @@ export function UpstreamModelSelection(props: UpstreamModelSelectionProps) {
                   redirectOnly={categorized.redirectOnly}
                   onChange={props.onChange}
                   onRedirectModel={props.onRedirectModel}
+                  onSetAlias={props.onSetAlias}
                   aliases={props.aliases}
                 />
               )
@@ -390,6 +449,7 @@ export function UpstreamModelSelection(props: UpstreamModelSelectionProps) {
                 redirectOnly={categorized.redirectOnly}
                 onChange={props.onChange}
                 onRedirectModel={props.onRedirectModel}
+                onSetAlias={props.onSetAlias}
                 aliases={props.aliases}
               />
             </TabsContent>
@@ -406,6 +466,7 @@ export function UpstreamModelSelection(props: UpstreamModelSelectionProps) {
               redirectOnly={categorized.redirectOnly}
               onChange={props.onChange}
               onRedirectModel={props.onRedirectModel}
+              onSetAlias={props.onSetAlias}
               aliases={props.aliases}
             />
           ))}

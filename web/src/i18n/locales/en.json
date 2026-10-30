@@ -5088,7 +5088,6 @@
     "Redemption quota must be positive": "Redemption quota must be positive",
     "Redemption successful! Added: {{quota}}": "Redemption successful! Added: {{quota}}",
     "Redirect {{model}}": "Redirect {{model}}",
-    "Redirect fetched upstream names to the names your users call.": "Redirect fetched upstream names to the names your users call.",
     "Redirect panel": "Redirect panel",
     "Redirect URL": "Redirect URL",
     "Redirecting to chat page...": "Redirecting to chat page...",
@@ -7370,6 +7369,9 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Set alias": "Set alias",
+    "Alias for {{model}}": "Alias for {{model}}",
+    "Type an alias beside a fetched model to expose it under that name, or open the redirect panel for advanced mapping.": "Type an alias beside a fetched model to expose it under that name, or open the redirect panel for advanced mapping."
   }
 }

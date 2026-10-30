@@ -5088,7 +5088,6 @@
     "Redemption quota must be positive": "兌換碼額度必須大於 0",
     "Redemption successful! Added: {{quota}}": "兌換成功！已新增：{{quota}}",
     "Redirect {{model}}": "重新導向 {{model}}",
-    "Redirect fetched upstream names to the names your users call.": "將拉取到的上游名稱重新導向為使用者呼叫的名稱。",
     "Redirect panel": "重新導向面板",
     "Redirect URL": "重新導向 URL",
     "Redirecting to chat page...": "正在跳轉到聊天頁面...",
@@ -7370,6 +7369,9 @@
     "Zhipu": "智譜",
     "Zhipu GLM": "智譜GLM",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Set alias": "設定別名",
+    "Alias for {{model}}": "{{model}} 的別名",
+    "Type an alias beside a fetched model to expose it under that name, or open the redirect panel for advanced mapping.": "在取得的模型旁輸入別名，即可用該名稱對外提供；進階映射可開啟重新導向面板。"
   }
 }

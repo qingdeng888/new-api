@@ -105,6 +105,69 @@ export function deriveModelMappingPairs(
 }
 
 /**
+ * Removes mapping entries whose request name is in `sources`. Returns `null`
+ * when the current document is not a valid mapping object, and '' when nothing
+ * remains.
+ */
+export function removeModelMappingPairs(
+  current: string,
+  sources: readonly string[]
+): string | null {
+  const mapping: Record<string, string> = {}
+  const trimmed = current.trim()
+  if (trimmed) {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      return null
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null
+    }
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value !== 'string') return null
+      mapping[key] = value
+    }
+  }
+  for (const raw of sources) {
+    const source = raw.trim()
+    if (source) delete mapping[source]
+  }
+  if (Object.keys(mapping).length === 0) return ''
+  return JSON.stringify(mapping, null, 2)
+}
+
+/**
+ * Publishes `nextAlias` for the upstream model `target` in a model-mapping
+ * JSON document, replacing the entry for `currentAlias` when provided. An
+ * alias equal to the target's own name (or empty) clears the entry instead —
+ * the model is then reachable under its upstream name only. Returns `null`
+ * when the current document is not a valid mapping object.
+ */
+export function applyUpstreamAlias(
+  current: string,
+  target: string,
+  nextAlias: string | null,
+  currentAlias?: string | null
+): string | null {
+  const alias = nextAlias?.trim() ?? ''
+  const previous = currentAlias?.trim() ?? ''
+  const normalizedTarget = target.trim()
+  let mapping: string | null = current
+  if (previous && previous !== alias) {
+    mapping = removeModelMappingPairs(mapping, [previous])
+    if (mapping === null) return null
+  }
+  if (!alias || alias === normalizedTarget) {
+    return mapping
+  }
+  return mergeModelMappingPairs(mapping, [
+    { from: alias, to: normalizedTarget },
+  ])
+}
+
+/**
  * Merges pairs into a model-mapping JSON document. Existing request names keep
  * their position and receive the new upstream name; new pairs are appended.
  * Returns `null` when the current document is not a valid mapping object.
