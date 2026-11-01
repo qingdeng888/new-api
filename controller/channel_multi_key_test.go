@@ -109,3 +109,28 @@ func TestMultiKeyEnableRestoresOnlyExhaustedChannels(t *testing.T) {
 		}
 	}
 }
+
+func TestOldestAutoDisabledKeyIndexRotatesThroughDeadKeys(t *testing.T) {
+	channel := &model.Channel{
+		Key: "k0\nk1\nk2\nk3",
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:   true,
+			MultiKeySize: 4,
+			MultiKeyStatusList: map[int]int{
+				1: common.ChannelStatusAutoDisabled,
+				3: common.ChannelStatusAutoDisabled,
+			},
+			MultiKeyDisabledTime: map[int]int64{1: 100, 3: 50},
+		},
+	}
+	// The key that failed longest ago is probed first.
+	assert.Equal(t, 3, oldestAutoDisabledKeyIndex(channel))
+
+	// Keys without a recorded time count as the oldest.
+	channel.ChannelInfo.MultiKeyDisabledTime = map[int]int64{1: 100}
+	assert.Equal(t, 3, oldestAutoDisabledKeyIndex(channel))
+
+	// No auto-disabled keys at all means nothing to probe.
+	channel.ChannelInfo.MultiKeyStatusList = nil
+	assert.Equal(t, -1, oldestAutoDisabledKeyIndex(channel))
+}

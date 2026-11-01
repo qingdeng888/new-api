@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -1008,8 +1009,52 @@ func testChannelForHealthCheck(ctx context.Context, channel *model.Channel, test
 		summary.Enabled++
 	}
 
+	// Recovery probe: the normal test only ever selects enabled keys, so an
+	// auto-disabled key of a multi-key channel would never be retried again.
+	// When auto-enable is on, pin the auto-disabled key that failed longest
+	// ago and give it one request; success re-enables exactly that key, and
+	// failure refreshes its record so the next cycle probes another one.
+	if common.AutomaticEnableChannelEnabled && channel.ChannelInfo.IsMultiKey {
+		if probeIdx := oldestAutoDisabledKeyIndex(channel); probeIdx >= 0 {
+			keys := channel.GetKeys()
+			if probeIdx < len(keys) {
+				probeResult := testChannel(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel), probeIdx)
+				if probeResult.localErr == nil && probeResult.newAPIError == nil {
+					service.EnableChannel(channel.Id, keys[probeIdx], channel.Name)
+					summary.Enabled++
+				} else if probeResult.newAPIError != nil {
+					model.UpdateChannelStatus(channel.Id, keys[probeIdx], common.ChannelStatusAutoDisabled, probeResult.newAPIError.MaskSensitiveErrorWithStatusCode())
+				}
+			}
+		}
+	}
+
 	channel.UpdateResponseTime(milliseconds)
 	return summary
+}
+
+// oldestAutoDisabledKeyIndex returns the auto-disabled key that failed
+// longest ago, so recovery probes rotate through dead keys instead of
+// retrying the same one every cycle. Keys without a recorded time count as
+// the oldest.
+func oldestAutoDisabledKeyIndex(channel *model.Channel) int {
+	statusList := channel.ChannelInfo.MultiKeyStatusList
+	if len(statusList) == 0 {
+		return -1
+	}
+	oldest := -1
+	var oldestTime int64 = math.MaxInt64
+	for i := range channel.GetKeys() {
+		if statusList[i] != common.ChannelStatusAutoDisabled {
+			continue
+		}
+		failedAt := channel.ChannelInfo.MultiKeyDisabledTime[i]
+		if failedAt < oldestTime {
+			oldestTime = failedAt
+			oldest = i
+		}
+	}
+	return oldest
 }
 
 // runChannelTestWorkers executes independent channel tests with bounded
