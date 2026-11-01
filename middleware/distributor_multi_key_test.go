@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
@@ -79,4 +80,44 @@ func TestSetupContextForSelectedChannelSkipsDisabledKeysWithoutPin(t *testing.T)
 		[]string{"k1", "k2"},
 		common.GetContextKeyString(c, constant.ContextKeyChannelKey),
 	)
+}
+
+func TestSetupContextForSelectedChannelAppliesPerKeyProxy(t *testing.T) {
+	channel := newMultiKeyTestChannel()
+	channel.ChannelInfo.MultiKeyProxies = map[int]string{
+		1: "socks5://user:pass@10.0.0.8:1080",
+	}
+	c := newMultiKeyTestContext()
+	common.SetContextKey(c, constant.ContextKeyChannelPinnedMultiKeyIndex, 1)
+
+	require.Nil(t, SetupContextForSelectedChannel(c, channel, "gpt-4o"))
+	assert.Equal(t, "k1", common.GetContextKeyString(c, constant.ContextKeyChannelKey))
+	setting, ok := common.GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting)
+	require.True(t, ok)
+	assert.Equal(t, "socks5://user:pass@10.0.0.8:1080", setting.Proxy)
+}
+
+func TestSetupContextForSelectedChannelPerKeyDirectClearsChannelProxy(t *testing.T) {
+	channel := newMultiKeyTestChannel()
+	channel.SetSetting(dto.ChannelSettings{Proxy: "http://channel-proxy:8080"})
+	channel.ChannelInfo.MultiKeyProxies = map[int]string{1: model.MultiKeyProxyDirect}
+	c := newMultiKeyTestContext()
+	common.SetContextKey(c, constant.ContextKeyChannelPinnedMultiKeyIndex, 1)
+
+	require.Nil(t, SetupContextForSelectedChannel(c, channel, "gpt-4o"))
+	setting, ok := common.GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting)
+	require.True(t, ok)
+	assert.Empty(t, setting.Proxy)
+}
+
+func TestSetupContextForSelectedChannelWithoutKeyProxyKeepsChannelProxy(t *testing.T) {
+	channel := newMultiKeyTestChannel()
+	channel.SetSetting(dto.ChannelSettings{Proxy: "http://channel-proxy:8080"})
+	c := newMultiKeyTestContext()
+	common.SetContextKey(c, constant.ContextKeyChannelPinnedMultiKeyIndex, 0)
+
+	require.Nil(t, SetupContextForSelectedChannel(c, channel, "gpt-4o"))
+	setting, ok := common.GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting)
+	require.True(t, ok)
+	assert.Equal(t, "http://channel-proxy:8080", setting.Proxy)
 }

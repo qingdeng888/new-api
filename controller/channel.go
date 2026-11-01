@@ -1609,11 +1609,12 @@ func CopyChannel(c *gin.Context) {
 // MultiKeyManageRequest represents the request for multi-key management operations
 type MultiKeyManageRequest struct {
 	ChannelId int    `json:"channel_id"`
-	Action    string `json:"action"`              // "disable_key", "enable_key", "delete_key", "delete_disabled_keys", "get_key_status"
-	KeyIndex  *int   `json:"key_index,omitempty"` // for disable_key, enable_key, and delete_key actions
+	Action    string `json:"action"`              // "disable_key", "enable_key", "delete_key", "delete_disabled_keys", "get_key_status", "set_key_proxy"
+	KeyIndex  *int   `json:"key_index,omitempty"` // for disable_key, enable_key, delete_key and set_key_proxy actions
 	Page      int    `json:"page,omitempty"`      // for get_key_status pagination
 	PageSize  int    `json:"page_size,omitempty"` // for get_key_status pagination
 	Status    *int   `json:"status,omitempty"`    // for get_key_status filtering: 1=enabled, 2=manual_disabled, 3=auto_disabled, nil=all
+	Proxy     string `json:"proxy,omitempty"`     // for set_key_proxy: empty clears, "direct" dials directly, otherwise a proxy URL
 }
 
 // MultiKeyStatusResponse represents the response for key status query
@@ -1636,6 +1637,7 @@ type KeyStatus struct {
 	DisabledTime  int64  `json:"disabled_time,omitempty"`
 	Reason        string `json:"reason,omitempty"`
 	CooldownUntil int64  `json:"cooldown_until,omitempty"` // transient cool-down deadline; the key returns to rotation after it
+	Proxy         string `json:"proxy,omitempty"`          // per-key proxy; empty inherits the channel proxy, "direct" dials directly
 	// Key is returned in full for the admin console: the endpoint already
 	// requires admin authentication and full keys are needed to tell the
 	// entries of a key pool apart.
@@ -1743,6 +1745,7 @@ func ManageMultiKeys(c *gin.Context) {
 				DisabledTime:  disabledTime,
 				Reason:        reason,
 				CooldownUntil: cooldownUntil,
+				Proxy:         channel.ChannelInfo.MultiKeyProxies[i],
 				Key:           key,
 			})
 		}
@@ -1969,6 +1972,7 @@ func ManageMultiKeys(c *gin.Context) {
 		var newDisabledReason = make(map[int]string)
 		var newCooldownUntil = make(map[int]int64)
 		var newFailStreak = make(map[int]int)
+		var newProxies = make(map[int]string)
 
 		newIndex := 0
 		for i, key := range keys {
@@ -2005,6 +2009,11 @@ func ManageMultiKeys(c *gin.Context) {
 					newFailStreak[newIndex] = s
 				}
 			}
+			if channel.ChannelInfo.MultiKeyProxies != nil {
+				if p, exists := channel.ChannelInfo.MultiKeyProxies[i]; exists {
+					newProxies[newIndex] = p
+				}
+			}
 			newIndex++
 		}
 
@@ -2021,6 +2030,7 @@ func ManageMultiKeys(c *gin.Context) {
 		channel.ChannelInfo.MultiKeyDisabledReason = newDisabledReason
 		channel.ChannelInfo.MultiKeyCooldownUntil = newCooldownUntil
 		channel.ChannelInfo.MultiKeyFailStreak = newFailStreak
+		channel.ChannelInfo.MultiKeyProxies = newProxies
 
 		shouldCloseWebSocket := disableMultiKeyChannelIfUnavailable(channel)
 		err = channel.Update()
@@ -2044,6 +2054,7 @@ func ManageMultiKeys(c *gin.Context) {
 		var newDisabledReason = make(map[int]string)
 		var newCooldownUntil = make(map[int]int64)
 		var newFailStreak = make(map[int]int)
+		var newProxies = make(map[int]string)
 
 		newIndex := 0
 		for i, key := range keys {
@@ -2083,6 +2094,11 @@ func ManageMultiKeys(c *gin.Context) {
 						newFailStreak[newIndex] = s
 					}
 				}
+				if channel.ChannelInfo.MultiKeyProxies != nil {
+					if p, exists := channel.ChannelInfo.MultiKeyProxies[i]; exists {
+						newProxies[newIndex] = p
+					}
+				}
 				newIndex++
 			}
 		}
@@ -2100,6 +2116,7 @@ func ManageMultiKeys(c *gin.Context) {
 		channel.ChannelInfo.MultiKeyDisabledReason = newDisabledReason
 		channel.ChannelInfo.MultiKeyCooldownUntil = newCooldownUntil
 		channel.ChannelInfo.MultiKeyFailStreak = newFailStreak
+		channel.ChannelInfo.MultiKeyProxies = newProxies
 
 		shouldCloseWebSocket := disableMultiKeyChannelIfUnavailable(channel)
 		err = channel.Update()
@@ -2112,6 +2129,44 @@ func ManageMultiKeys(c *gin.Context) {
 			closeActiveChannelWebSockets([]int{channel.Id})
 		}
 		common.ApiSuccessT(c, "Deleted {{count}} auto-disabled keys", deletedCount, map[string]any{"count": deletedCount})
+		return
+
+	case "set_key_proxy":
+		if request.KeyIndex == nil {
+			common.ApiErrorT(c, "No key index specified to set proxy")
+			return
+		}
+
+		keyIndex := *request.KeyIndex
+		if keyIndex < 0 || keyIndex >= channel.ChannelInfo.MultiKeySize {
+			common.ApiErrorT(c, "Key index out of range")
+			return
+		}
+
+		proxy := strings.TrimSpace(request.Proxy)
+		if proxy != "" && proxy != model.MultiKeyProxyDirect {
+			if _, err := common.ParseProxyURLStrict(proxy); err != nil {
+				common.ApiErrorT(c, "Invalid proxy address")
+				return
+			}
+		}
+
+		if proxy == "" {
+			delete(channel.ChannelInfo.MultiKeyProxies, keyIndex)
+		} else {
+			if channel.ChannelInfo.MultiKeyProxies == nil {
+				channel.ChannelInfo.MultiKeyProxies = make(map[int]string)
+			}
+			channel.ChannelInfo.MultiKeyProxies[keyIndex] = proxy
+		}
+
+		err = channel.Update()
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		model.InitChannelCache()
+		common.ApiSuccessT(c, "Key proxy updated", nil)
 		return
 
 	default:

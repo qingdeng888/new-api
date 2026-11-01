@@ -189,3 +189,74 @@ func TestMultiKeyGetKeyStatusReturnsFullKeys(t *testing.T) {
 	assert.Equal(t, "sk-alpha-1234567890abcdef", result.Data.Keys[0].Key)
 	assert.Equal(t, "sk-beta-0987654321fedcba", result.Data.Keys[1].Key)
 }
+
+func TestMultiKeySetKeyProxyRoundTrip(t *testing.T) {
+	root := setupMultiKeyManageTestDB(t)
+
+	channel := &model.Channel{
+		Name:   t.Name(),
+		Type:   1,
+		Key:    "sk-a\nsk-b\nsk-c",
+		Status: common.ChannelStatusEnabled,
+		Models: "test-model",
+		Group:  "default",
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:   true,
+			MultiKeySize: 3,
+		},
+	}
+	require.NoError(t, channel.Insert())
+	t.Cleanup(func() {
+		require.NoError(t, channel.Delete())
+		model.InitChannelCache()
+	})
+
+	callManage := func(request MultiKeyManageRequest) map[string]any {
+		payload, err := common.Marshal(request)
+		require.NoError(t, err)
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Set("id", root.Id)
+		c.Set("role", common.RoleRootUser)
+		c.Request = httptest.NewRequest(http.MethodPost, "/api/channel/multi_key", bytes.NewReader(payload))
+		c.Request.Header.Set("Content-Type", "application/json")
+		ManageMultiKeys(c)
+		var result map[string]any
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &result))
+		return result
+	}
+
+	// A valid proxy is stored and reported back.
+	result := callManage(MultiKeyManageRequest{
+		ChannelId: channel.Id, Action: "set_key_proxy",
+		KeyIndex: common.GetPointer(1), Proxy: "socks5://user:pass@10.0.0.8:1080",
+	})
+	assert.Equal(t, true, result["success"])
+
+	// An unsupported scheme is rejected before touching the channel.
+	result = callManage(MultiKeyManageRequest{
+		ChannelId: channel.Id, Action: "set_key_proxy",
+		KeyIndex: common.GetPointer(0), Proxy: "ftp://nope:21",
+	})
+	assert.Equal(t, false, result["success"])
+
+	// get_key_status reports the configured proxy and omits the unset ones.
+	result = callManage(MultiKeyManageRequest{ChannelId: channel.Id, Action: "get_key_status"})
+	require.Equal(t, true, result["success"])
+	data := result["data"].(map[string]any)
+	keys := data["keys"].([]any)
+	first := keys[0].(map[string]any)
+	second := keys[1].(map[string]any)
+	assert.NotContains(t, first, "proxy")
+	assert.Equal(t, "socks5://user:pass@10.0.0.8:1080", second["proxy"])
+
+	// An empty value clears the per-key proxy.
+	result = callManage(MultiKeyManageRequest{
+		ChannelId: channel.Id, Action: "set_key_proxy",
+		KeyIndex: common.GetPointer(1), Proxy: "",
+	})
+	assert.Equal(t, true, result["success"])
+	loaded, err := model.GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	assert.NotContains(t, loaded.ChannelInfo.MultiKeyProxies, 1)
+}

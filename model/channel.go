@@ -69,6 +69,7 @@ type ChannelInfo struct {
 	MultiKeyDisabledTime   map[int]int64         `json:"multi_key_disabled_time,omitempty"`   // key index -> 禁用时间
 	MultiKeyCooldownUntil  map[int]int64         `json:"multi_key_cooldown_until,omitempty"`  // key index -> unix秒,冷却截止时间（瞬时错误临时摘除，到期自动回池）
 	MultiKeyFailStreak     map[int]int           `json:"multi_key_fail_streak,omitempty"`     // key index -> 连续瞬时失败次数（决定冷却时长）
+	MultiKeyProxies        map[int]string        `json:"multi_key_proxies,omitempty"`         // key index -> 该 key 专属代理；空=继承渠道代理，"direct"=显式直连
 	MultiKeyPollingIndex   int                   `json:"multi_key_polling_index"`             // 轮询游标
 	MultiKeyMode           constant.MultiKeyMode `json:"multi_key_mode"`
 }
@@ -316,6 +317,11 @@ const (
 	MultiKeyCooldownBaseSeconds int64 = 60
 	MultiKeyCooldownMaxSeconds  int64 = 1800
 )
+
+// MultiKeyProxyDirect stored as a key's proxy marks the key as dialing
+// directly, ignoring the channel-level proxy (CPA-style per-credential
+// override). Any other non-empty value must be a valid proxy URL.
+const MultiKeyProxyDirect = "direct"
 
 // MultiKeyCooldownSeconds returns the cool-down for a key whose consecutive
 // transient failure streak is `streak` (1-based).
