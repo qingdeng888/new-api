@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Loader2, Zap } from 'lucide-react'
+import { Globe, Loader2, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,7 @@ type MultiKeyTableRowActionsProps = {
   canDelete: boolean
   isTesting?: boolean
   onTest?: () => void
+  onSetProxy?: () => void
   onAction: (action: MultiKeyConfirmAction) => void
 }
 
@@ -38,6 +39,7 @@ export function MultiKeyTableRowActions({
   canDelete,
   isTesting = false,
   onTest,
+  onSetProxy,
   onAction,
 }: MultiKeyTableRowActionsProps) {
   const { t } = useTranslation()
@@ -45,6 +47,17 @@ export function MultiKeyTableRowActions({
 
   return (
     <div className='flex justify-end gap-2'>
+      {onSetProxy && (
+        <Button
+          variant='outline'
+          size='sm'
+          onClick={onSetProxy}
+          aria-label={t('Set Proxy')}
+        >
+          <Globe className='h-4 w-4' aria-hidden='true' />
+          {t('Proxy')}
+        </Button>
+      )}
       {onTest && (
         <Button
           variant='outline'

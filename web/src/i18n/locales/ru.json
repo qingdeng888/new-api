@@ -7381,6 +7381,10 @@
     "Cooling down until {{time}}": "Охлаждение до {{time}}",
     "Test All Keys": "Проверить все ключи",
     "Testing {{done}}/{{total}}...": "Проверка {{done}}/{{total}}...",
-    "Key tests finished: {{success}}/{{total}} succeeded": "Проверка ключей завершена: успешно {{success}}/{{total}}"
+    "Key tests finished: {{success}}/{{total}} succeeded": "Проверка ключей завершена: успешно {{success}}/{{total}}",
+    "Set Proxy": "Настроить прокси",
+    "Proxy": "Прокси",
+    "Set proxy for key #{{index}}": "Прокси для ключа #{{index}}",
+    "Leave empty to use the channel proxy. Enter direct to dial without any proxy.": "Оставьте пустым, чтобы использовать прокси канала. Введите direct для прямого подключения."
   }
 }

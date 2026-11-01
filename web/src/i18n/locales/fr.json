@@ -7381,6 +7381,10 @@
     "Cooling down until {{time}}": "En pause jusqu'à {{time}}",
     "Test All Keys": "Tester toutes les clés",
     "Testing {{done}}/{{total}}...": "Test en cours {{done}}/{{total}}...",
-    "Key tests finished: {{success}}/{{total}} succeeded": "Tests des clés terminés : {{success}}/{{total}} réussis"
+    "Key tests finished: {{success}}/{{total}} succeeded": "Tests des clés terminés : {{success}}/{{total}} réussis",
+    "Set Proxy": "Définir le proxy",
+    "Proxy": "Proxy",
+    "Set proxy for key #{{index}}": "Définir le proxy de la clé #{{index}}",
+    "Leave empty to use the channel proxy. Enter direct to dial without any proxy.": "Laissez vide pour utiliser le proxy du canal. Saisissez direct pour une connexion sans proxy."
   }
 }

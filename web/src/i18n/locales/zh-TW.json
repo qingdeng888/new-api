@@ -7381,6 +7381,10 @@
     "Cooling down until {{time}}": "冷卻至 {{time}} 後自動恢復",
     "Test All Keys": "測試所有金鑰",
     "Testing {{done}}/{{total}}...": "測試中 {{done}}/{{total}}...",
-    "Key tests finished: {{success}}/{{total}} succeeded": "金鑰測試完成：成功 {{success}}/{{total}}"
+    "Key tests finished: {{success}}/{{total}} succeeded": "金鑰測試完成：成功 {{success}}/{{total}}",
+    "Set Proxy": "設定代理",
+    "Proxy": "代理",
+    "Set proxy for key #{{index}}": "設定金鑰 #{{index}} 的代理",
+    "Leave empty to use the channel proxy. Enter direct to dial without any proxy.": "留空使用渠道代理；輸入 direct 表示該金鑰直連（不走任何代理）。"
   }
 }

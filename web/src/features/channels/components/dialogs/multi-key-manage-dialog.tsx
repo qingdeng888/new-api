@@ -17,7 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, RefreshCw, Trash2, Power, PowerOff, Zap } from 'lucide-react'
+import {
+  Loader2,
+  RefreshCw,
+  Trash2,
+  Power,
+  PowerOff,
+  Zap,
+} from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -28,6 +35,7 @@ import { StaticDataTable } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -54,6 +62,7 @@ import {
   enableAllMultiKeys,
   disableAllMultiKeys,
   deleteDisabledMultiKeys,
+  setMultiKeyProxy,
 } from '../../api'
 import { MULTI_KEY_FILTER_OPTIONS } from '../../constants'
 import {
@@ -64,6 +73,7 @@ import {
   handleTestChannel,
   isDestructiveAction,
   formatResponseTime,
+  isOptionalProxyURL,
 } from '../../lib'
 import type { KeyStatus, MultiKeyConfirmAction } from '../../types'
 import { useChannels } from '../channels-provider'
@@ -117,6 +127,11 @@ export function MultiKeyManageDialog({
     null
   )
   const batchRunRef = useRef(0)
+  const [proxyEditor, setProxyEditor] = useState<{
+    index: number
+    value: string
+  } | null>(null)
+  const [isSavingProxy, setIsSavingProxy] = useState(false)
 
   // Reset and load data when dialog opens
   useEffect(() => {
@@ -125,6 +140,7 @@ export function MultiKeyManageDialog({
       setStatusFilter(null)
       setKeyTests({})
       setBatchTest(null)
+      setProxyEditor(null)
       batchRunRef.current += 1
       loadKeyStatus(1, pageSize, null)
     }
@@ -242,6 +258,37 @@ export function MultiKeyManageDialog({
         total,
       })
     )
+  }
+
+  const proxyEditorInvalid =
+    proxyEditor !== null &&
+    proxyEditor.value.trim() !== '' &&
+    proxyEditor.value.trim() !== 'direct' &&
+    !isOptionalProxyURL(proxyEditor.value)
+
+  // Save the per-key proxy: an empty value clears the override so the key
+  // falls back to the channel-level proxy.
+  const handleSaveProxy = async () => {
+    if (!currentRow || !proxyEditor || proxyEditorInvalid) return
+    setIsSavingProxy(true)
+    try {
+      const response = await setMultiKeyProxy(
+        currentRow.id,
+        proxyEditor.index,
+        proxyEditor.value.trim()
+      )
+      if (response.success) {
+        toast.success(getServerMessage(response) || t('Operation successful'))
+        setProxyEditor(null)
+        loadKeyStatus(currentPage, pageSize)
+      } else {
+        handleServerError(response, t('Operation failed'))
+      }
+    } catch (error: unknown) {
+      handleServerError(error, t('Operation failed'))
+    } finally {
+      setIsSavingProxy(false)
+    }
   }
 
   const handlePageChange = (newPage: number) => {
@@ -564,7 +611,7 @@ export function MultiKeyManageDialog({
             {!isLoading && !(keys.length === 0) && (
               <StaticDataTable
                 className='rounded-none border-0'
-                tableClassName='min-w-[1180px]'
+                tableClassName='min-w-[1340px]'
                 data={keys}
                 getRowKey={(key) => key.index}
                 columns={[
@@ -615,6 +662,22 @@ export function MultiKeyManageDialog({
                     cell: (key) => formatKeyTimestamp(key.disabled_time),
                   },
                   {
+                    id: 'proxy',
+                    header: t('Proxy'),
+                    className: 'min-w-[180px] max-w-[260px]',
+                    cell: (key) =>
+                      key.proxy ? (
+                        <span
+                          title={key.proxy}
+                          className='block max-w-[240px] truncate font-mono text-xs'
+                        >
+                          {key.proxy}
+                        </span>
+                      ) : (
+                        <span className='text-muted-foreground text-sm'>-</span>
+                      ),
+                  },
+                  {
                     id: 'test',
                     header: t('Test Result'),
                     className: 'w-44',
@@ -632,6 +695,9 @@ export function MultiKeyManageDialog({
                         canDelete={canEditSensitive}
                         isTesting={Boolean(batchTest) || keyTests[key.index]?.status === 'testing'}
                         onTest={() => handleTestKey(key.index)}
+                        onSetProxy={() =>
+                          setProxyEditor({ index: key.index, value: key.proxy || '' })
+                        }
                         onAction={setConfirmAction}
                       />
                     ),
@@ -683,6 +749,72 @@ export function MultiKeyManageDialog({
         isLoading={isPerformingAction}
         handleConfirm={performAction}
       />
+
+      {/* Per-key proxy editor */}
+      <Dialog
+        open={proxyEditor !== null}
+        onOpenChange={(open) => !open && setProxyEditor(null)}
+        title={t('Set proxy for key #{{index}}', {
+          index: (proxyEditor?.index ?? 0) + 1,
+        })}
+        description={t(
+          'Leave empty to use the channel proxy. Enter direct to dial without any proxy.'
+        )}
+        bodyClassName='space-y-3'
+      >
+        <Input
+          aria-label={t('Proxy Address')}
+          placeholder='http://user:pass@ip:port  |  socks5://user:pass@ip:port'
+          spellCheck={false}
+          value={proxyEditor?.value ?? ''}
+          onChange={(event) =>
+            setProxyEditor((prev) =>
+              prev ? { ...prev, value: event.target.value } : prev
+            )
+          }
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !proxyEditorInvalid) {
+              event.preventDefault()
+              void handleSaveProxy()
+            }
+          }}
+        />
+        {proxyEditorInvalid && (
+          <p className='text-destructive text-xs'>
+            {t(
+              'Proxy address must use HTTP, HTTPS, SOCKS5, or SOCKS5H and include a valid host'
+            )}
+          </p>
+        )}
+        <div className='flex justify-end gap-2'>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() =>
+              setProxyEditor((prev) => (prev ? { ...prev, value: '' } : prev))
+            }
+          >
+            {t('Clear')}
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => setProxyEditor(null)}
+          >
+            {t('Cancel')}
+          </Button>
+          <Button
+            size='sm'
+            onClick={() => void handleSaveProxy()}
+            disabled={proxyEditorInvalid || isSavingProxy}
+          >
+            {isSavingProxy && (
+              <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
+            )}
+            {t('Save')}
+          </Button>
+        </div>
+      </Dialog>
     </>
   )
 }

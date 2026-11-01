@@ -7381,6 +7381,10 @@
     "Cooling down until {{time}}": "Tạm nghỉ đến {{time}}",
     "Test All Keys": "Kiểm tra tất cả khóa",
     "Testing {{done}}/{{total}}...": "Đang kiểm tra {{done}}/{{total}}...",
-    "Key tests finished: {{success}}/{{total}} succeeded": "Hoàn tất kiểm tra khóa: thành công {{success}}/{{total}}"
+    "Key tests finished: {{success}}/{{total}} succeeded": "Hoàn tất kiểm tra khóa: thành công {{success}}/{{total}}",
+    "Set Proxy": "Đặt proxy",
+    "Proxy": "Proxy",
+    "Set proxy for key #{{index}}": "Đặt proxy cho khóa #{{index}}",
+    "Leave empty to use the channel proxy. Enter direct to dial without any proxy.": "Để trống sẽ dùng proxy của kênh. Nhập direct để kết nối trực tiếp không qua proxy."
   }
 }

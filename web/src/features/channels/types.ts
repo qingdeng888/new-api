@@ -241,6 +241,8 @@ export interface KeyStatus {
   cooldown_until?: number
   /** Full key value — the admin console is authenticated, no masking. */
   key?: string
+  /** Per-key proxy; empty inherits the channel proxy, direct dials directly. */
+  proxy?: string
 }
 
 export type MultiKeyConfirmAction = {
@@ -329,10 +331,12 @@ export interface MultiKeyManageParams {
     | 'disable_all_keys'
     | 'delete_key'
     | 'delete_disabled_keys'
+    | 'set_key_proxy'
   key_index?: number
   page?: number
   page_size?: number
   status?: number // 1=enabled, 2=manual_disabled, 3=auto_disabled
+  proxy?: string // set_key_proxy: empty clears, direct dials directly
 }
 
 export interface BatchDeleteParams {

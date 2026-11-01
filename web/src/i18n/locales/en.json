@@ -7381,6 +7381,10 @@
     "Cooling down until {{time}}": "Cooling down until {{time}}",
     "Test All Keys": "Test All Keys",
     "Testing {{done}}/{{total}}...": "Testing {{done}}/{{total}}...",
-    "Key tests finished: {{success}}/{{total}} succeeded": "Key tests finished: {{success}}/{{total}} succeeded"
+    "Key tests finished: {{success}}/{{total}} succeeded": "Key tests finished: {{success}}/{{total}} succeeded",
+    "Set Proxy": "Set Proxy",
+    "Proxy": "Proxy",
+    "Set proxy for key #{{index}}": "Set proxy for key #{{index}}",
+    "Leave empty to use the channel proxy. Enter direct to dial without any proxy.": "Leave empty to use the channel proxy. Enter direct to dial without any proxy."
   }
 }

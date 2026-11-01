@@ -7381,6 +7381,10 @@
     "Cooling down until {{time}}": "{{time}} までクールダウン",
     "Test All Keys": "すべてのキーをテスト",
     "Testing {{done}}/{{total}}...": "テスト中 {{done}}/{{total}}...",
-    "Key tests finished: {{success}}/{{total}} succeeded": "キーテスト完了：{{success}}/{{total}} 件成功"
+    "Key tests finished: {{success}}/{{total}} succeeded": "キーテスト完了：{{success}}/{{total}} 件成功",
+    "Set Proxy": "プロキシを設定",
+    "Proxy": "プロキシ",
+    "Set proxy for key #{{index}}": "キー #{{index}} のプロキシを設定",
+    "Leave empty to use the channel proxy. Enter direct to dial without any proxy.": "空欄でチャンネルのプロキシを使用します。direct と入力するとプロキシなしで直接接続します。"
   }
 }

@@ -513,6 +513,24 @@ export async function deleteMultiKey(
 }
 
 /**
+ * Set or clear the per-key proxy of a multi-key channel. An empty proxy
+ * clears the override (the key falls back to the channel proxy); "direct"
+ * makes the key dial without any proxy.
+ */
+export async function setMultiKeyProxy(
+  channelId: number,
+  keyIndex: number,
+  proxy: string
+): Promise<{ success: boolean; message?: string }> {
+  return manageMultiKeys({
+    channel_id: channelId,
+    action: 'set_key_proxy',
+    key_index: keyIndex,
+    proxy,
+  }) as Promise<{ success: boolean; message?: string }>
+}
+
+/**
  * Enable all keys in multi-key channel
  */
 export async function enableAllMultiKeys(
