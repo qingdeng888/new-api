@@ -7376,6 +7376,8 @@
     "Test key": "测试密钥",
     "Test Result": "测试结果",
     "{{name}} key #{{index}}": "{{name}} 密钥 #{{index}}",
-    "Key #{{index}}": "密钥 #{{index}}"
+    "Key #{{index}}": "密钥 #{{index}}",
+    "Cooldown": "冷却中",
+    "Cooling down until {{time}}": "冷却至 {{time}} 后自动恢复"
   }
 }

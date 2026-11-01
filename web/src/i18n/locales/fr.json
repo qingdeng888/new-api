@@ -7376,6 +7376,8 @@
     "Test key": "Tester la clé",
     "Test Result": "Résultat du test",
     "{{name}} key #{{index}}": "Clé #{{index}} de {{name}}",
-    "Key #{{index}}": "Clé #{{index}}"
+    "Key #{{index}}": "Clé #{{index}}",
+    "Cooldown": "Repos temporaire",
+    "Cooling down until {{time}}": "En pause jusqu'à {{time}}"
   }
 }

@@ -7376,6 +7376,8 @@
     "Test key": "Test key",
     "Test Result": "Test Result",
     "{{name}} key #{{index}}": "{{name}} key #{{index}}",
-    "Key #{{index}}": "Key #{{index}}"
+    "Key #{{index}}": "Key #{{index}}",
+    "Cooldown": "Cooldown",
+    "Cooling down until {{time}}": "Cooling down until {{time}}"
   }
 }

@@ -104,6 +104,7 @@ export function MultiKeyManageDialog({
   const [enabledCount, setEnabledCount] = useState(0)
   const [manualDisabledCount, setManualDisabledCount] = useState(0)
   const [autoDisabledCount, setAutoDisabledCount] = useState(0)
+  const [cooldownCount, setCooldownCount] = useState(0)
 
   // UI state
   const [statusFilter, setStatusFilter] = useState<number | null>(null)
@@ -148,6 +149,7 @@ export function MultiKeyManageDialog({
         setEnabledCount(response.data.enabled_count || 0)
         setManualDisabledCount(response.data.manual_disabled_count || 0)
         setAutoDisabledCount(response.data.auto_disabled_count || 0)
+        setCooldownCount(response.data.cooldown_count || 0)
       } else {
         handleServerError(response, t('Failed to load key status'))
       }
@@ -252,8 +254,29 @@ export function MultiKeyManageDialog({
     }
   }
 
-  const renderStatusBadge = (status: number) => {
-    const config = getMultiKeyStatusConfig(status)
+  const renderStatusBadge = (key: KeyStatus) => {
+    // A cooling key is still enabled, just temporarily out of rotation.
+    if (
+      key.status === 1 &&
+      key.cooldown_until &&
+      key.cooldown_until * 1000 > Date.now()
+    ) {
+      return (
+        <span
+          title={t('Cooling down until {{time}}', {
+            time: formatTimestamp(key.cooldown_until),
+          })}
+        >
+          <StatusBadge
+            label={t('Cooldown')}
+            variant='warning'
+            showDot
+            copyable={false}
+          />
+        </span>
+      )
+    }
+    const config = getMultiKeyStatusConfig(key.status)
     return (
       <StatusBadge
         label={t(config.label)}
@@ -348,7 +371,7 @@ export function MultiKeyManageDialog({
       >
         <div className='flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden'>
           {/* Statistics */}
-          <div className='grid shrink-0 grid-cols-3 gap-3'>
+          <div className='grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-4'>
             <StatisticsCard
               label={t('Enabled')}
               count={enabledCount}
@@ -362,6 +385,11 @@ export function MultiKeyManageDialog({
             <StatisticsCard
               label={t('Auto Disabled')}
               count={autoDisabledCount}
+              total={total}
+            />
+            <StatisticsCard
+              label={t('Cooldown')}
+              count={cooldownCount}
               total={total}
             />
           </div>
@@ -481,7 +509,7 @@ export function MultiKeyManageDialog({
                     id: 'status',
                     header: t('Status'),
                     className: 'w-32',
-                    cell: (key) => renderStatusBadge(key.status),
+                    cell: (key) => renderStatusBadge(key),
                   },
                   {
                     id: 'reason',

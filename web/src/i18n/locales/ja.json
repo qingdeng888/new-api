@@ -7376,6 +7376,8 @@
     "Test key": "キーをテスト",
     "Test Result": "テスト結果",
     "{{name}} key #{{index}}": "{{name}} キー #{{index}}",
-    "Key #{{index}}": "キー #{{index}}"
+    "Key #{{index}}": "キー #{{index}}",
+    "Cooldown": "クールダウン",
+    "Cooling down until {{time}}": "{{time}} までクールダウン"
   }
 }

@@ -7376,6 +7376,8 @@
     "Test key": "Проверить ключ",
     "Test Result": "Результат проверки",
     "{{name}} key #{{index}}": "Ключ #{{index}} канала {{name}}",
-    "Key #{{index}}": "Ключ #{{index}}"
+    "Key #{{index}}": "Ключ #{{index}}",
+    "Cooldown": "Охлаждение",
+    "Cooling down until {{time}}": "Охлаждение до {{time}}"
   }
 }

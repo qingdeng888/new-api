@@ -237,6 +237,8 @@ export interface KeyStatus {
   status: number // 1: enabled, 2: manual disabled, 3: auto disabled
   disabled_time?: number
   reason?: string
+  /** Transient cool-down deadline (unix seconds); the key re-enters rotation after it. */
+  cooldown_until?: number
   key_preview?: string
 }
 
@@ -263,6 +265,7 @@ export interface MultiKeyStatusResponse {
     enabled_count: number
     manual_disabled_count: number
     auto_disabled_count: number
+    cooldown_count: number
   }
 }
 
