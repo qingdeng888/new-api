@@ -1,6 +1,7 @@
 package service
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -60,6 +61,23 @@ func ShouldRetryRelayError(c *gin.Context, openaiErr *types.NewAPIError, retryTi
 	return DecideRelayRetry(c, openaiErr, retryTimes).Action == "retry"
 }
 
+// isTransientChannelError reports whether the failure looks temporary:
+// rate limiting, request timeouts, or upstream availability problems. Keys
+// failing these go into a cool-down and return to rotation on their own,
+// instead of being permanently disabled.
+func isTransientChannelError(err *types.NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+	if types.IsChannelError(err) || types.IsSkipRetryError(err) {
+		return false
+	}
+	code := err.StatusCode
+	return code == http.StatusTooManyRequests ||
+		code == http.StatusRequestTimeout ||
+		code >= http.StatusInternalServerError
+}
+
 func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError, relayInfo *relaycommon.RelayInfo) {
 	if err == nil {
 		return
@@ -70,6 +88,13 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		reason := err.MaskSensitiveErrorWithStatusCode(upstreamURLs...)
 		gopool.Go(func() {
 			DisableChannel(channelError, reason)
+		})
+	} else if channelError.AutoBan && channelError.IsMultiKey && isTransientChannelError(err) {
+		// Transient failures only sideline the key temporarily. The key
+		// re-enters rotation when the cool-down expires, or earlier once a
+		// request through it succeeds.
+		gopool.Go(func() {
+			model.RecordMultiKeyKeyFailure(channelError.ChannelId, channelError.UsingKey)
 		})
 	}
 

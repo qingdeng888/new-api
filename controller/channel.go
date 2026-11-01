@@ -70,6 +70,8 @@ func clearChannelInfo(channel *model.Channel) {
 	if channel.ChannelInfo.IsMultiKey {
 		channel.ChannelInfo.MultiKeyDisabledReason = nil
 		channel.ChannelInfo.MultiKeyDisabledTime = nil
+		channel.ChannelInfo.MultiKeyCooldownUntil = nil
+		channel.ChannelInfo.MultiKeyFailStreak = nil
 	}
 }
 
@@ -1625,6 +1627,7 @@ type MultiKeyStatusResponse struct {
 	EnabledCount        int `json:"enabled_count"`
 	ManualDisabledCount int `json:"manual_disabled_count"`
 	AutoDisabledCount   int `json:"auto_disabled_count"`
+	CooldownCount       int `json:"cooldown_count"`
 }
 
 type KeyStatus struct {
@@ -1632,7 +1635,8 @@ type KeyStatus struct {
 	Status       int    `json:"status"` // 1: enabled, 2: disabled
 	DisabledTime int64  `json:"disabled_time,omitempty"`
 	Reason       string `json:"reason,omitempty"`
-	KeyPreview   string `json:"key_preview"` // first 10 chars of key for identification
+	CooldownUntil int64 `json:"cooldown_until,omitempty"` // transient cool-down deadline; the key returns to rotation after it
+	KeyPreview   string `json:"key_preview"`              // first 10 chars of key for identification
 }
 
 // ManageMultiKeys handles multi-key management operations
@@ -1689,7 +1693,8 @@ func ManageMultiKeys(c *gin.Context) {
 		}
 
 		// Statistics for all keys (unchanged by filtering)
-		var enabledCount, manualDisabledCount, autoDisabledCount int
+		var enabledCount, manualDisabledCount, autoDisabledCount, cooldownCount int
+		now := common.GetTimestamp()
 
 		// Build all key status data first
 		var allKeyStatusList []KeyStatus
@@ -1697,6 +1702,7 @@ func ManageMultiKeys(c *gin.Context) {
 			status := 1 // default enabled
 			var disabledTime int64
 			var reason string
+			var cooldownUntil int64
 
 			if channel.ChannelInfo.MultiKeyStatusList != nil {
 				if s, exists := channel.ChannelInfo.MultiKeyStatusList[i]; exists {
@@ -1721,6 +1727,11 @@ func ManageMultiKeys(c *gin.Context) {
 				if channel.ChannelInfo.MultiKeyDisabledReason != nil {
 					reason = channel.ChannelInfo.MultiKeyDisabledReason[i]
 				}
+			} else if channel.ChannelInfo.MultiKeyCooldownUntil != nil {
+				if until, exists := channel.ChannelInfo.MultiKeyCooldownUntil[i]; exists && until > now {
+					cooldownUntil = until
+					cooldownCount++
+				}
 			}
 
 			// Create key preview (first 10 chars)
@@ -1730,11 +1741,12 @@ func ManageMultiKeys(c *gin.Context) {
 			}
 
 			allKeyStatusList = append(allKeyStatusList, KeyStatus{
-				Index:        i,
-				Status:       status,
-				DisabledTime: disabledTime,
-				Reason:       reason,
-				KeyPreview:   keyPreview,
+				Index:         i,
+				Status:        status,
+				DisabledTime:  disabledTime,
+				Reason:        reason,
+				CooldownUntil: cooldownUntil,
+				KeyPreview:    keyPreview,
 			})
 		}
 
@@ -1782,6 +1794,7 @@ func ManageMultiKeys(c *gin.Context) {
 				EnabledCount:        enabledCount,        // Overall statistics
 				ManualDisabledCount: manualDisabledCount, // Overall statistics
 				AutoDisabledCount:   autoDisabledCount,   // Overall statistics
+				CooldownCount:       cooldownCount,       // Overall statistics
 			},
 		})
 		return
@@ -1809,6 +1822,13 @@ func ManageMultiKeys(c *gin.Context) {
 		}
 
 		channel.ChannelInfo.MultiKeyStatusList[keyIndex] = 2 // disabled
+		// A manual disable supersedes any transient cool-down state.
+		if channel.ChannelInfo.MultiKeyCooldownUntil != nil {
+			delete(channel.ChannelInfo.MultiKeyCooldownUntil, keyIndex)
+		}
+		if channel.ChannelInfo.MultiKeyFailStreak != nil {
+			delete(channel.ChannelInfo.MultiKeyFailStreak, keyIndex)
+		}
 
 		shouldCloseWebSocket := disableMultiKeyChannelIfUnavailable(channel)
 		err = channel.Update()
@@ -1845,6 +1865,14 @@ func ManageMultiKeys(c *gin.Context) {
 		if channel.ChannelInfo.MultiKeyDisabledReason != nil {
 			delete(channel.ChannelInfo.MultiKeyDisabledReason, keyIndex)
 		}
+		// Re-enabling also clears any transient cool-down so the key serves
+		// immediately.
+		if channel.ChannelInfo.MultiKeyCooldownUntil != nil {
+			delete(channel.ChannelInfo.MultiKeyCooldownUntil, keyIndex)
+		}
+		if channel.ChannelInfo.MultiKeyFailStreak != nil {
+			delete(channel.ChannelInfo.MultiKeyFailStreak, keyIndex)
+		}
 		restoreMultiKeyChannelIfAvailable(channel)
 
 		err = channel.Update()
@@ -1867,6 +1895,8 @@ func ManageMultiKeys(c *gin.Context) {
 		channel.ChannelInfo.MultiKeyStatusList = make(map[int]int)
 		channel.ChannelInfo.MultiKeyDisabledTime = make(map[int]int64)
 		channel.ChannelInfo.MultiKeyDisabledReason = make(map[int]string)
+		channel.ChannelInfo.MultiKeyCooldownUntil = make(map[int]int64)
+		channel.ChannelInfo.MultiKeyFailStreak = make(map[int]int)
 		restoreMultiKeyChannelIfAvailable(channel)
 
 		err = channel.Update()
@@ -1940,6 +1970,8 @@ func ManageMultiKeys(c *gin.Context) {
 		var newStatusList = make(map[int]int)
 		var newDisabledTime = make(map[int]int64)
 		var newDisabledReason = make(map[int]string)
+		var newCooldownUntil = make(map[int]int64)
+		var newFailStreak = make(map[int]int)
 
 		newIndex := 0
 		for i, key := range keys {
@@ -1966,6 +1998,16 @@ func ManageMultiKeys(c *gin.Context) {
 					newDisabledReason[newIndex] = r
 				}
 			}
+			if channel.ChannelInfo.MultiKeyCooldownUntil != nil {
+				if t, exists := channel.ChannelInfo.MultiKeyCooldownUntil[i]; exists {
+					newCooldownUntil[newIndex] = t
+				}
+			}
+			if channel.ChannelInfo.MultiKeyFailStreak != nil {
+				if s, exists := channel.ChannelInfo.MultiKeyFailStreak[i]; exists {
+					newFailStreak[newIndex] = s
+				}
+			}
 			newIndex++
 		}
 
@@ -1980,6 +2022,8 @@ func ManageMultiKeys(c *gin.Context) {
 		channel.ChannelInfo.MultiKeyStatusList = newStatusList
 		channel.ChannelInfo.MultiKeyDisabledTime = newDisabledTime
 		channel.ChannelInfo.MultiKeyDisabledReason = newDisabledReason
+		channel.ChannelInfo.MultiKeyCooldownUntil = newCooldownUntil
+		channel.ChannelInfo.MultiKeyFailStreak = newFailStreak
 
 		shouldCloseWebSocket := disableMultiKeyChannelIfUnavailable(channel)
 		err = channel.Update()
@@ -2001,6 +2045,8 @@ func ManageMultiKeys(c *gin.Context) {
 		var newStatusList = make(map[int]int)
 		var newDisabledTime = make(map[int]int64)
 		var newDisabledReason = make(map[int]string)
+		var newCooldownUntil = make(map[int]int64)
+		var newFailStreak = make(map[int]int)
 
 		newIndex := 0
 		for i, key := range keys {
@@ -2030,6 +2076,16 @@ func ManageMultiKeys(c *gin.Context) {
 						}
 					}
 				}
+				if channel.ChannelInfo.MultiKeyCooldownUntil != nil {
+					if t, exists := channel.ChannelInfo.MultiKeyCooldownUntil[i]; exists {
+						newCooldownUntil[newIndex] = t
+					}
+				}
+				if channel.ChannelInfo.MultiKeyFailStreak != nil {
+					if s, exists := channel.ChannelInfo.MultiKeyFailStreak[i]; exists {
+						newFailStreak[newIndex] = s
+					}
+				}
 				newIndex++
 			}
 		}
@@ -2045,6 +2101,8 @@ func ManageMultiKeys(c *gin.Context) {
 		channel.ChannelInfo.MultiKeyStatusList = newStatusList
 		channel.ChannelInfo.MultiKeyDisabledTime = newDisabledTime
 		channel.ChannelInfo.MultiKeyDisabledReason = newDisabledReason
+		channel.ChannelInfo.MultiKeyCooldownUntil = newCooldownUntil
+		channel.ChannelInfo.MultiKeyFailStreak = newFailStreak
 
 		shouldCloseWebSocket := disableMultiKeyChannelIfUnavailable(channel)
 		err = channel.Update()

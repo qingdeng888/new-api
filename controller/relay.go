@@ -28,6 +28,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
+	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -216,6 +217,17 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			service.MarkRequestPolicySuccess(c, relayInfo.StreamStatus)
+			// A successful request proves the key works again; clear any
+			// transient cool-down so it keeps serving without interruption.
+			if common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey) {
+				successChannelId := common.GetContextKeyInt(c, constant.ContextKeyChannelId)
+				successKey := common.GetContextKeyString(c, constant.ContextKeyChannelKey)
+				if successChannelId != 0 && successKey != "" {
+					gopool.Go(func() {
+						model.RecordMultiKeyKeySuccess(successChannelId, successKey)
+					})
+				}
+			}
 			relayInfo.LastError = nil
 			return
 		}

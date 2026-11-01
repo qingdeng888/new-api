@@ -63,11 +63,13 @@ const ChannelStatusReasonAllKeysDisabled = "All keys are disabled"
 
 type ChannelInfo struct {
 	IsMultiKey             bool                  `json:"is_multi_key"`                        // 是否多Key模式
-	MultiKeySize           int                   `json:"multi_key_size"`                      // 多Key模式下的Key数量
-	MultiKeyStatusList     map[int]int           `json:"multi_key_status_list"`               // key状态列表，key index -> status
-	MultiKeyDisabledReason map[int]string        `json:"multi_key_disabled_reason,omitempty"` // key禁用原因列表，key index -> reason
-	MultiKeyDisabledTime   map[int]int64         `json:"multi_key_disabled_time,omitempty"`   // key禁用时间列表，key index -> time
-	MultiKeyPollingIndex   int                   `json:"multi_key_polling_index"`             // 多Key模式下轮询的key索引
+	MultiKeySize           int                   `json:"multi_key_size"`                      // Key数量
+	MultiKeyStatusList     map[int]int           `json:"multi_key_status_list"`               // key index -> status
+	MultiKeyDisabledReason map[int]string        `json:"multi_key_disabled_reason,omitempty"` // key index -> 禁用原因
+	MultiKeyDisabledTime   map[int]int64         `json:"multi_key_disabled_time,omitempty"`   // key index -> 禁用时间
+	MultiKeyCooldownUntil  map[int]int64         `json:"multi_key_cooldown_until,omitempty"`  // key index -> unix秒,冷却截止时间（瞬时错误临时摘除，到期自动回池）
+	MultiKeyFailStreak     map[int]int           `json:"multi_key_fail_streak,omitempty"`     // key index -> 连续瞬时失败次数（决定冷却时长）
+	MultiKeyPollingIndex   int                   `json:"multi_key_polling_index"`             // 轮询游标
 	MultiKeyMode           constant.MultiKeyMode `json:"multi_key_mode"`
 }
 
@@ -237,10 +239,18 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 		return common.ChannelStatusEnabled
 	}
 
+	now := common.GetTimestamp()
+	// A key cooling down after a transient failure is skipped for now and
+	// re-enters rotation on its own once the deadline passes.
+	isAvailable := func(idx int) bool {
+		return getStatus(idx) == common.ChannelStatusEnabled &&
+			!isKeyCoolingDown(channel.ChannelInfo, idx, now)
+	}
+
 	// Collect indexes of enabled keys
 	enabledIdx := make([]int, 0, len(keys))
 	for i := range keys {
-		if getStatus(i) == common.ChannelStatusEnabled {
+		if isAvailable(i) {
 			enabledIdx = append(enabledIdx, i)
 		}
 	}
@@ -280,7 +290,7 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 		}
 		for i := range keys {
 			idx := (start + i) % len(keys)
-			if getStatus(idx) == common.ChannelStatusEnabled {
+			if isAvailable(idx) {
 				// update polling index for next call (point to the next position)
 				channel.ChannelInfo.MultiKeyPollingIndex = (idx + 1) % len(keys)
 				return keys[idx], idx, nil
@@ -296,6 +306,141 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 
 func (channel *Channel) SaveChannelInfo() error {
 	return DB.Model(channel).Update("channel_info", channel.ChannelInfo).Error
+}
+
+// Transient failures (rate limits, upstream 5xx, timeouts) put a key into a
+// cool-down instead of permanently disabling it: it is skipped by key
+// selection until the deadline and re-enters rotation on its own. Each
+// consecutive failure doubles the duration, capped; a success resets it.
+const (
+	MultiKeyCooldownBaseSeconds int64 = 60
+	MultiKeyCooldownMaxSeconds  int64 = 1800
+)
+
+// MultiKeyCooldownSeconds returns the cool-down for a key whose consecutive
+// transient failure streak is `streak` (1-based).
+func MultiKeyCooldownSeconds(streak int) int64 {
+	if streak < 1 {
+		streak = 1
+	}
+	seconds := MultiKeyCooldownBaseSeconds
+	for range streak - 1 {
+		seconds *= 2
+		if seconds >= MultiKeyCooldownMaxSeconds {
+			return MultiKeyCooldownMaxSeconds
+		}
+	}
+	return seconds
+}
+
+func multiKeyKeyIndex(keys []string, usingKey string) int {
+	if usingKey == "" {
+		return -1
+	}
+	for i, key := range keys {
+		if key == usingKey {
+			return i
+		}
+	}
+	return -1
+}
+
+func isKeyCoolingDown(info ChannelInfo, idx int, now int64) bool {
+	if info.MultiKeyCooldownUntil == nil {
+		return false
+	}
+	until, ok := info.MultiKeyCooldownUntil[idx]
+	return ok && until > now
+}
+
+// pruneExpiredMultiKeyCooldowns drops expired cool-downs so the stored JSON
+// does not grow with dead entries. Failure streaks are kept: they only reset
+// on success, so a key that keeps failing keeps earning longer cool-downs.
+func pruneExpiredMultiKeyCooldowns(info *ChannelInfo, now int64) {
+	for idx, until := range info.MultiKeyCooldownUntil {
+		if until <= now {
+			delete(info.MultiKeyCooldownUntil, idx)
+		}
+	}
+}
+
+// updateMultiKeyKeyRuntimeState applies a per-key runtime state change (which
+// never touches the channel status) under the same lock discipline as
+// UpdateChannelStatus, and persists only when something actually changed.
+func updateMultiKeyKeyRuntimeState(channelId int, usingKey string, apply func(info *ChannelInfo, keyIndex int) bool) bool {
+	if usingKey == "" {
+		return false
+	}
+	if common.MemoryCacheEnabled {
+		channelStatusLock.Lock()
+		defer channelStatusLock.Unlock()
+	}
+	pollingLock := GetChannelPollingLock(channelId)
+	pollingLock.Lock()
+	defer pollingLock.Unlock()
+
+	changed := false
+	if common.MemoryCacheEnabled {
+		if channelCache, _ := CacheGetChannel(channelId); channelCache != nil && channelCache.ChannelInfo.IsMultiKey {
+			if keyIndex := multiKeyKeyIndex(channelCache.GetKeys(), usingKey); keyIndex >= 0 {
+				if apply(&channelCache.ChannelInfo, keyIndex) {
+					changed = true
+				}
+			}
+		}
+	}
+	channel, err := GetChannelById(channelId, true)
+	if err != nil || !channel.ChannelInfo.IsMultiKey {
+		return changed
+	}
+	keyIndex := multiKeyKeyIndex(channel.GetKeys(), usingKey)
+	if keyIndex < 0 {
+		return changed
+	}
+	if apply(&channel.ChannelInfo, keyIndex) {
+		if err := channel.SaveChannelInfo(); err != nil {
+			common.SysLog(common.LogText("failed to save multi-key runtime state: channel_id=%d, error=%v", channelId, err))
+			return changed
+		}
+		changed = true
+	}
+	return changed
+}
+
+// RecordMultiKeyKeyFailure puts the key used by a failed request into a
+// cool-down whose duration grows with its consecutive failure streak.
+func RecordMultiKeyKeyFailure(channelId int, usingKey string) bool {
+	return updateMultiKeyKeyRuntimeState(channelId, usingKey, func(info *ChannelInfo, keyIndex int) bool {
+		now := common.GetTimestamp()
+		if info.MultiKeyFailStreak == nil {
+			info.MultiKeyFailStreak = make(map[int]int)
+		}
+		if info.MultiKeyCooldownUntil == nil {
+			info.MultiKeyCooldownUntil = make(map[int]int64)
+		}
+		info.MultiKeyFailStreak[keyIndex] = info.MultiKeyFailStreak[keyIndex] + 1
+		info.MultiKeyCooldownUntil[keyIndex] = now + MultiKeyCooldownSeconds(info.MultiKeyFailStreak[keyIndex])
+		pruneExpiredMultiKeyCooldowns(info, now)
+		return true
+	})
+}
+
+// RecordMultiKeyKeySuccess clears the cool-down and failure streak after a
+// successful request through the key.
+func RecordMultiKeyKeySuccess(channelId int, usingKey string) bool {
+	return updateMultiKeyKeyRuntimeState(channelId, usingKey, func(info *ChannelInfo, keyIndex int) bool {
+		now := common.GetTimestamp()
+		changed := false
+		if info.MultiKeyFailStreak != nil && info.MultiKeyFailStreak[keyIndex] > 0 {
+			delete(info.MultiKeyFailStreak, keyIndex)
+			changed = true
+		}
+		if isKeyCoolingDown(*info, keyIndex, now) {
+			delete(info.MultiKeyCooldownUntil, keyIndex)
+			changed = true
+		}
+		return changed
+	})
 }
 
 func (channel *Channel) GetModels() []string {
@@ -704,7 +849,12 @@ func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason
 		}
 		if status == common.ChannelStatusEnabled {
 			delete(channel.ChannelInfo.MultiKeyStatusList, keyIndex)
+			delete(channel.ChannelInfo.MultiKeyCooldownUntil, keyIndex)
+			delete(channel.ChannelInfo.MultiKeyFailStreak, keyIndex)
 		} else {
+			// A permanent disable supersedes any transient cool-down state.
+			delete(channel.ChannelInfo.MultiKeyCooldownUntil, keyIndex)
+			delete(channel.ChannelInfo.MultiKeyFailStreak, keyIndex)
 			channel.ChannelInfo.MultiKeyStatusList[keyIndex] = status
 			if channel.ChannelInfo.MultiKeyDisabledReason == nil {
 				channel.ChannelInfo.MultiKeyDisabledReason = make(map[int]string)
@@ -790,11 +940,15 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 		return false
 	} else {
 		// A manual channel operation must replace the exhaustion reason even
-		// when the status value is already manually disabled.
+		// when the status value is already manually disabled. Multi-key
+		// updates that target one key must not be skipped either: re-enabling
+		// or refreshing a single key changes key state even when the
+		// channel-level status already matches.
 		overridesKeyExhaustion := channel.ChannelInfo.IsMultiKey && usingKey == "" &&
 			status == common.ChannelStatusManuallyDisabled && reason != ChannelStatusReasonAllKeysDisabled &&
 			channel.GetOtherInfo()["status_reason"] == ChannelStatusReasonAllKeysDisabled
-		if channel.Status == status && !overridesKeyExhaustion {
+		targetsSingleKey := channel.ChannelInfo.IsMultiKey && usingKey != ""
+		if channel.Status == status && !overridesKeyExhaustion && !targetsSingleKey {
 			return false
 		}
 
