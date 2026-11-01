@@ -7378,6 +7378,9 @@
     "{{name}} key #{{index}}": "{{name}} key #{{index}}",
     "Key #{{index}}": "Key #{{index}}",
     "Cooldown": "Cooldown",
-    "Cooling down until {{time}}": "Cooling down until {{time}}"
+    "Cooling down until {{time}}": "Cooling down until {{time}}",
+    "Test All Keys": "Test All Keys",
+    "Testing {{done}}/{{total}}...": "Testing {{done}}/{{total}}...",
+    "Key tests finished: {{success}}/{{total}} succeeded": "Key tests finished: {{success}}/{{total}} succeeded"
   }
 }

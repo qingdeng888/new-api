@@ -7378,6 +7378,9 @@
     "{{name}} key #{{index}}": "{{name}} キー #{{index}}",
     "Key #{{index}}": "キー #{{index}}",
     "Cooldown": "クールダウン",
-    "Cooling down until {{time}}": "{{time}} までクールダウン"
+    "Cooling down until {{time}}": "{{time}} までクールダウン",
+    "Test All Keys": "すべてのキーをテスト",
+    "Testing {{done}}/{{total}}...": "テスト中 {{done}}/{{total}}...",
+    "Key tests finished: {{success}}/{{total}} succeeded": "キーテスト完了：{{success}}/{{total}} 件成功"
   }
 }

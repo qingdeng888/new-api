@@ -7378,6 +7378,9 @@
     "{{name}} key #{{index}}": "Khóa #{{index}} của {{name}}",
     "Key #{{index}}": "Khóa #{{index}}",
     "Cooldown": "Tạm nghỉ",
-    "Cooling down until {{time}}": "Tạm nghỉ đến {{time}}"
+    "Cooling down until {{time}}": "Tạm nghỉ đến {{time}}",
+    "Test All Keys": "Kiểm tra tất cả khóa",
+    "Testing {{done}}/{{total}}...": "Đang kiểm tra {{done}}/{{total}}...",
+    "Key tests finished: {{success}}/{{total}} succeeded": "Hoàn tất kiểm tra khóa: thành công {{success}}/{{total}}"
   }
 }

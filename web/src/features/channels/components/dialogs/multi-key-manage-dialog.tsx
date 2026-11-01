@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, RefreshCw, Trash2, Power, PowerOff } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { Loader2, RefreshCw, Trash2, Power, PowerOff, Zap } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -113,6 +113,10 @@ export function MultiKeyManageDialog({
     useState<MultiKeyConfirmAction | null>(null)
   const [isPerformingAction, setIsPerformingAction] = useState(false)
   const [keyTests, setKeyTests] = useState<Record<number, KeyTestState>>({})
+  const [batchTest, setBatchTest] = useState<{ done: number; total: number } | null>(
+    null
+  )
+  const batchRunRef = useRef(0)
 
   // Reset and load data when dialog opens
   useEffect(() => {
@@ -120,6 +124,8 @@ export function MultiKeyManageDialog({
       setCurrentPage(1)
       setStatusFilter(null)
       setKeyTests({})
+      setBatchTest(null)
+      batchRunRef.current += 1
       loadKeyStatus(1, pageSize, null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -170,29 +176,71 @@ export function MultiKeyManageDialog({
 
   // Probe one key with the channel's first model; the result is shown per
   // row and never changes the key's status, matching manual channel tests.
-  const handleTestKey = (keyIndex: number) => {
-    if (!currentRow || keyTests[keyIndex]?.status === 'testing') return
+  const runKeyTest = (keyIndex: number, silent: boolean): Promise<boolean> => {
+    if (!currentRow) return Promise.resolve(false)
     const firstModel =
       currentRow.models
         ?.split(',')
         .map((model) => model.trim())
         .find(Boolean) || undefined
     setKeyTests((prev) => ({ ...prev, [keyIndex]: { status: 'testing' } }))
-    void handleTestChannel(
-      currentRow.id,
-      {
-        channelName: currentRow.name,
-        testModel: firstModel,
-        keyIndex,
-      },
-      (success, responseTime, error) => {
-        setKeyTests((prev) => ({
-          ...prev,
-          [keyIndex]: success
-            ? { status: 'success', time: responseTime }
-            : { status: 'failed', message: error || t('Test failed') },
-        }))
+    return new Promise((resolve) => {
+      void handleTestChannel(
+        currentRow.id,
+        {
+          channelName: currentRow.name,
+          testModel: firstModel,
+          keyIndex,
+          silent,
+        },
+        (success, responseTime, error) => {
+          setKeyTests((prev) => ({
+            ...prev,
+            [keyIndex]: success
+              ? { status: 'success', time: responseTime }
+              : { status: 'failed', message: error || t('Test failed') },
+          }))
+          resolve(success)
+        }
+      )
+    })
+  }
+
+  const handleTestKey = (keyIndex: number) => {
+    if (!currentRow || keyTests[keyIndex]?.status === 'testing') return
+    void runKeyTest(keyIndex, false)
+  }
+
+  // Test every key of the pool with bounded concurrency. Individual toasts
+  // are suppressed; one summary toast reports the outcome.
+  const handleTestAllKeys = async () => {
+    if (!currentRow || batchTest) return
+    const total = currentRow.channel_info?.multi_key_size || 0
+    if (total <= 0) return
+    const runId = ++batchRunRef.current
+    setBatchTest({ done: 0, total })
+    let cursor = 0
+    let successCount = 0
+    let done = 0
+    const worker = async () => {
+      while (cursor < total) {
+        if (batchRunRef.current !== runId) return
+        const keyIndex = cursor++
+        const success = await runKeyTest(keyIndex, true)
+        if (success) successCount += 1
+        done += 1
+        if (batchRunRef.current !== runId) return
+        setBatchTest({ done, total })
       }
+    }
+    await Promise.all(Array.from({ length: Math.min(5, total) }, worker))
+    if (batchRunRef.current !== runId) return
+    setBatchTest(null)
+    toast.success(
+      t('Key tests finished: {{success}}/{{total}} succeeded', {
+        success: successCount,
+        total,
+      })
     )
   }
 
@@ -431,6 +479,27 @@ export function MultiKeyManageDialog({
                 <RefreshCw className='h-4 w-4' />
               </Button>
 
+              {(currentRow.channel_info?.multi_key_size || 0) > 0 && (
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={handleTestAllKeys}
+                  disabled={Boolean(batchTest) || isLoading}
+                >
+                  {batchTest ? (
+                    <Loader2 className='h-4 w-4 animate-spin' />
+                  ) : (
+                    <Zap className='h-4 w-4' />
+                  )}
+                  {batchTest
+                    ? t('Testing {{done}}/{{total}}...', {
+                        done: batchTest.done,
+                        total: batchTest.total,
+                      })
+                    : t('Test All Keys')}
+                </Button>
+              )}
+
               {manualDisabledCount + autoDisabledCount > 0 && (
                 <Button
                   variant='default'
@@ -561,7 +630,7 @@ export function MultiKeyManageDialog({
                         keyIndex={key.index}
                         status={key.status}
                         canDelete={canEditSensitive}
-                        isTesting={keyTests[key.index]?.status === 'testing'}
+                        isTesting={Boolean(batchTest) || keyTests[key.index]?.status === 'testing'}
                         onTest={() => handleTestKey(key.index)}
                         onAction={setConfirmAction}
                       />

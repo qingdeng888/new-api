@@ -7378,6 +7378,9 @@
     "{{name}} key #{{index}}": "Clé #{{index}} de {{name}}",
     "Key #{{index}}": "Clé #{{index}}",
     "Cooldown": "Repos temporaire",
-    "Cooling down until {{time}}": "En pause jusqu'à {{time}}"
+    "Cooling down until {{time}}": "En pause jusqu'à {{time}}",
+    "Test All Keys": "Tester toutes les clés",
+    "Testing {{done}}/{{total}}...": "Test en cours {{done}}/{{total}}...",
+    "Key tests finished: {{success}}/{{total}} succeeded": "Tests des clés terminés : {{success}}/{{total}} réussis"
   }
 }
