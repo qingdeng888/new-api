@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { CopyButton } from '@/components/copy-button'
 import { StaticDataTable } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
@@ -494,7 +495,7 @@ export function MultiKeyManageDialog({
             {!isLoading && !(keys.length === 0) && (
               <StaticDataTable
                 className='rounded-none border-0'
-                tableClassName='min-w-[960px]'
+                tableClassName='min-w-[1180px]'
                 data={keys}
                 getRowKey={(key) => key.index}
                 columns={[
@@ -504,6 +505,25 @@ export function MultiKeyManageDialog({
                     className: 'w-20',
                     cellClassName: 'font-mono text-sm',
                     cell: (key) => `#${key.index + 1}`,
+                  },
+                  {
+                    id: 'key',
+                    header: t('Key'),
+                    className: 'min-w-[220px] max-w-[320px]',
+                    cell: (key) => (
+                      <div className='flex items-start gap-1.5'>
+                        <span className='min-w-0 font-mono text-xs break-all'>
+                          {key.key || '-'}
+                        </span>
+                        {key.key && (
+                          <CopyButton
+                            value={key.key}
+                            className='text-muted-foreground hover:text-foreground size-6 shrink-0'
+                            aria-label={t('Copy to clipboard')}
+                          />
+                        )}
+                      </div>
+                    ),
                   },
                   {
                     id: 'status',

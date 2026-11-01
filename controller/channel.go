@@ -1631,12 +1631,15 @@ type MultiKeyStatusResponse struct {
 }
 
 type KeyStatus struct {
-	Index        int    `json:"index"`
-	Status       int    `json:"status"` // 1: enabled, 2: disabled
-	DisabledTime int64  `json:"disabled_time,omitempty"`
-	Reason       string `json:"reason,omitempty"`
-	CooldownUntil int64 `json:"cooldown_until,omitempty"` // transient cool-down deadline; the key returns to rotation after it
-	KeyPreview   string `json:"key_preview"`              // first 10 chars of key for identification
+	Index         int    `json:"index"`
+	Status        int    `json:"status"` // 1: enabled, 2: disabled
+	DisabledTime  int64  `json:"disabled_time,omitempty"`
+	Reason        string `json:"reason,omitempty"`
+	CooldownUntil int64  `json:"cooldown_until,omitempty"` // transient cool-down deadline; the key returns to rotation after it
+	// Key is returned in full for the admin console: the endpoint already
+	// requires admin authentication and full keys are needed to tell the
+	// entries of a key pool apart.
+	Key string `json:"key"`
 }
 
 // ManageMultiKeys handles multi-key management operations
@@ -1734,19 +1737,13 @@ func ManageMultiKeys(c *gin.Context) {
 				}
 			}
 
-			// Create key preview (first 10 chars)
-			keyPreview := key
-			if len(key) > 10 {
-				keyPreview = key[:10] + "..."
-			}
-
 			allKeyStatusList = append(allKeyStatusList, KeyStatus{
 				Index:         i,
 				Status:        status,
 				DisabledTime:  disabledTime,
 				Reason:        reason,
 				CooldownUntil: cooldownUntil,
-				KeyPreview:    keyPreview,
+				Key:           key,
 			})
 		}
 

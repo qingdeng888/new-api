@@ -239,7 +239,8 @@ export interface KeyStatus {
   reason?: string
   /** Transient cool-down deadline (unix seconds); the key re-enters rotation after it. */
   cooldown_until?: number
-  key_preview?: string
+  /** Full key value — the admin console is authenticated, no masking. */
+  key?: string
 }
 
 export type MultiKeyConfirmAction = {

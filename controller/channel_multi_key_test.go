@@ -16,7 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMultiKeyEnableRestoresOnlyExhaustedChannels(t *testing.T) {
+// setupMultiKeyManageTestDB boots an isolated SQLite database for one test
+// and returns the root user, restoring the previous globals on cleanup.
+func setupMultiKeyManageTestDB(t *testing.T) *model.User {
+	t.Helper()
 	previousDB, previousLogDB := model.DB, model.LOG_DB
 	previousType, previousLogType := common.MainDatabaseType(), common.LogDatabaseType()
 	previousMaster, previousCache, previousRedis, previousSQLite := common.IsMasterNode, common.MemoryCacheEnabled, common.RedisEnabled, common.SQLitePath
@@ -47,6 +50,11 @@ func TestMultiKeyEnableRestoresOnlyExhaustedChannels(t *testing.T) {
 	var version string
 	require.NoError(t, database.Raw(versionQuery).Scan(&version).Error)
 	t.Logf("database=%s version=%s", common.MainDatabaseType(), version)
+	return root
+}
+
+func TestMultiKeyEnableRestoresOnlyExhaustedChannels(t *testing.T) {
+	root := setupMultiKeyManageTestDB(t)
 
 	for _, cacheEnabled := range []bool{false, true} {
 		for _, action := range []string{"enable_key", "enable_all_keys"} {
@@ -102,7 +110,7 @@ func TestMultiKeyEnableRestoresOnlyExhaustedChannels(t *testing.T) {
 					assert.NotContains(t, loaded.ChannelInfo.MultiKeyDisabledReason, 0)
 					assert.NotContains(t, loaded.ChannelInfo.MultiKeyDisabledTime, 0)
 					var ability model.Ability
-					require.NoError(t, database.Where("channel_id = ?", channel.Id).First(&ability).Error)
+					require.NoError(t, model.DB.Where("channel_id = ?", channel.Id).First(&ability).Error)
 					assert.Equal(t, tc.wantStatus == common.ChannelStatusEnabled, ability.Enabled)
 				})
 			}
@@ -133,4 +141,51 @@ func TestOldestAutoDisabledKeyIndexRotatesThroughDeadKeys(t *testing.T) {
 	// No auto-disabled keys at all means nothing to probe.
 	channel.ChannelInfo.MultiKeyStatusList = nil
 	assert.Equal(t, -1, oldestAutoDisabledKeyIndex(channel))
+}
+
+func TestMultiKeyGetKeyStatusReturnsFullKeys(t *testing.T) {
+	root := setupMultiKeyManageTestDB(t)
+
+	channel := &model.Channel{
+		Name:   t.Name(),
+		Type:   1,
+		Key:    "sk-alpha-1234567890abcdef\nsk-beta-0987654321fedcba",
+		Status: common.ChannelStatusEnabled,
+		Models: "test-model",
+		Group:  "default",
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:   true,
+			MultiKeySize: 2,
+		},
+	}
+	require.NoError(t, channel.Insert())
+	t.Cleanup(func() {
+		require.NoError(t, channel.Delete())
+		model.InitChannelCache()
+	})
+
+	payload, err := common.Marshal(MultiKeyManageRequest{ChannelId: channel.Id, Action: "get_key_status"})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("id", root.Id)
+	c.Set("role", common.RoleRootUser)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/channel/multi_key", bytes.NewReader(payload))
+	c.Request.Header.Set("Content-Type", "application/json")
+	ManageMultiKeys(c)
+
+	var result struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Keys []struct {
+				Index int    `json:"index"`
+				Key   string `json:"key"`
+			} `json:"keys"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &result))
+	require.True(t, result.Success, recorder.Body.String())
+	require.Len(t, result.Data.Keys, 2)
+	assert.Equal(t, "sk-alpha-1234567890abcdef", result.Data.Keys[0].Key)
+	assert.Equal(t, "sk-beta-0987654321fedcba", result.Data.Keys[1].Key)
 }
