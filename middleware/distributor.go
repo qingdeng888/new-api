@@ -668,9 +668,27 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelModelMapping, channel.GetModelMapping())
 	common.SetContextKey(c, constant.ContextKeyChannelStatusCodeMapping, channel.GetStatusCodeMapping())
 
-	key, index, newAPIError := channel.GetNextEnabledKey()
-	if newAPIError != nil {
-		return newAPIError
+	var key string
+	var index int
+	if pinnedIndex, ok := common.GetContextKeyType[int](c, constant.ContextKeyChannelPinnedMultiKeyIndex); ok && channel.ChannelInfo.IsMultiKey {
+		// Only the channel test path pins an index, so a single key —
+		// including a disabled one — can be probed without rotating the
+		// polling cursor. Anything else keeps the normal selection.
+		keys := channel.GetKeys()
+		if pinnedIndex < 0 || pinnedIndex >= len(keys) {
+			return types.NewError(
+				fmt.Errorf("pinned multi-key index %d out of range", pinnedIndex),
+				types.ErrorCodeChannelNoAvailableKey,
+			)
+		}
+		key = keys[pinnedIndex]
+		index = pinnedIndex
+	} else {
+		var newAPIError *types.NewAPIError
+		key, index, newAPIError = channel.GetNextEnabledKey()
+		if newAPIError != nil {
+			return newAPIError
+		}
 	}
 	if channel.ChannelInfo.IsMultiKey {
 		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, true)

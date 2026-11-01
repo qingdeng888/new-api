@@ -70,7 +70,7 @@ func resolveChannelTestUserID(c *gin.Context) (int, error) {
 	return rootUser.Id, nil
 }
 
-func testChannel(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool) testResult {
+func testChannel(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool, keyIndex int) testResult {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -168,6 +168,22 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	c.Set("base_url", channel.GetBaseURL())
 	group, _ := model.GetUserGroup(testUserID, false)
 	c.Set("group", group)
+
+	// Pinning an index lets a manual test probe one specific key — including
+	// a disabled one — without touching the polling cursor.
+	if keyIndex >= 0 {
+		if !channel.ChannelInfo.IsMultiKey {
+			return testResult{
+				localErr: errors.New("channel is not in multi-key mode"),
+			}
+		}
+		if keyIndex >= len(channel.GetKeys()) {
+			return testResult{
+				localErr: fmt.Errorf("key index %d out of range", keyIndex),
+			}
+		}
+		common.SetContextKey(c, constant.ContextKeyChannelPinnedMultiKeyIndex, keyIndex)
+	}
 
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, testModel)
 	if newAPIError != nil {
@@ -865,6 +881,33 @@ func TestChannel(c *gin.Context) {
 	testModel := c.Query("model")
 	endpointType := c.Query("endpoint_type")
 	isStream, _ := strconv.ParseBool(c.Query("stream"))
+	keyIndex := -1
+	if raw := c.Query("key_index"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		keyIndex = parsed
+	}
+	if keyIndex >= 0 {
+		if !channel.ChannelInfo.IsMultiKey {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "channel is not in multi-key mode",
+				"time":    0.0,
+			})
+			return
+		}
+		if keyIndex < 0 || keyIndex >= len(channel.GetKeys()) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("key index %d out of range", keyIndex),
+				"time":    0.0,
+			})
+			return
+		}
+	}
 	testUserID, err := resolveChannelTestUserID(c)
 	if err != nil {
 		common.ApiError(c, err)
@@ -875,7 +918,7 @@ func TestChannel(c *gin.Context) {
 	if c.Request != nil {
 		requestCtx = c.Request.Context()
 	}
-	result := testChannel(requestCtx, channel, testUserID, testModel, endpointType, isStream)
+	result := testChannel(requestCtx, channel, testUserID, testModel, endpointType, isStream, keyIndex)
 	if result.localErr != nil {
 		resp := gin.H{
 			"success": false,
@@ -922,7 +965,7 @@ func testChannelForHealthCheck(ctx context.Context, channel *model.Channel, test
 	summary := channelTestSummary{}
 	isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 	tik := time.Now()
-	result := testChannel(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel))
+	result := testChannel(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel), -1)
 	milliseconds := time.Since(tik).Milliseconds()
 	if ctx.Err() != nil {
 		return summary

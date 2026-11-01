@@ -38,7 +38,11 @@ const (
 	ContextKeyChannelStatusCodeMapping ContextKey = "status_code_mapping"
 	ContextKeyChannelIsMultiKey        ContextKey = "channel_is_multi_key"
 	ContextKeyChannelMultiKeyIndex     ContextKey = "channel_multi_key_index"
-	ContextKeyChannelKey               ContextKey = "channel_key"
+	// ContextKeyChannelPinnedMultiKeyIndex forces a multi-key channel to use
+	// one specific key regardless of its status. Only the channel test path
+	// sets it so a single key (including a disabled one) can be probed.
+	ContextKeyChannelPinnedMultiKeyIndex ContextKey = "channel_pinned_multi_key_index"
+	ContextKeyChannelKey                 ContextKey = "channel_key"
 
 	// ContextKeyUpstreamRequestOrigin is the scheme and host of the last upstream
 	// request, which differs from the base URL for absolute Advanced Custom routes

@@ -7372,6 +7372,10 @@
     "Zoom": "縮放",
     "Set alias": "設定別名",
     "Alias for {{model}}": "{{model}} 的別名",
-    "Type an alias beside a fetched model to expose it under that name, or open the redirect panel for advanced mapping.": "在取得的模型旁輸入別名，即可用該名稱對外提供；進階映射可開啟重新導向面板。"
+    "Type an alias beside a fetched model to expose it under that name, or open the redirect panel for advanced mapping.": "在取得的模型旁輸入別名，即可用該名稱對外提供；進階映射可開啟重新導向面板。",
+    "Test key": "測試金鑰",
+    "Test Result": "測試結果",
+    "{{name}} key #{{index}}": "{{name}} 金鑰 #{{index}}",
+    "Key #{{index}}": "金鑰 #{{index}}"
   }
 }

@@ -7372,6 +7372,10 @@
     "Zoom": "Zoom",
     "Set alias": "Đặt bí danh",
     "Alias for {{model}}": "Bí danh cho {{model}}",
-    "Type an alias beside a fetched model to expose it under that name, or open the redirect panel for advanced mapping.": "Nhập bí danh bên cạnh mô hình đã lấy để công bố mô hình dưới tên đó; mở bảng chuyển hướng để ánh xạ nâng cao."
+    "Type an alias beside a fetched model to expose it under that name, or open the redirect panel for advanced mapping.": "Nhập bí danh bên cạnh mô hình đã lấy để công bố mô hình dưới tên đó; mở bảng chuyển hướng để ánh xạ nâng cao.",
+    "Test key": "Kiểm tra khóa",
+    "Test Result": "Kết quả kiểm tra",
+    "{{name}} key #{{index}}": "Khóa #{{index}} của {{name}}",
+    "Key #{{index}}": "Khóa #{{index}}"
   }
 }

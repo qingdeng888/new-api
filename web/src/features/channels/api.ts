@@ -280,11 +280,18 @@ export async function batchSetChannelTag(
 // ============================================================================
 
 /**
- * Test channel connectivity
+ * Test channel connectivity. `key_index` pins one multi-key channel key
+ * (including a disabled one) instead of letting the backend pick any
+ * enabled key.
  */
 export async function testChannel(
   id: number,
-  params?: { model?: string; endpoint_type?: string; stream?: boolean }
+  params?: {
+    model?: string
+    endpoint_type?: string
+    stream?: boolean
+    key_index?: number
+  }
 ): Promise<ChannelTestResponse> {
   const res = await api.get(
     `/api/channel/test/${id}`,

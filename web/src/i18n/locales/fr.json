@@ -7372,6 +7372,10 @@
     "Zoom": "Zoom",
     "Set alias": "Définir un alias",
     "Alias for {{model}}": "Alias pour {{model}}",
-    "Type an alias beside a fetched model to expose it under that name, or open the redirect panel for advanced mapping.": "Saisissez un alias à côté d'un modèle récupéré pour l'exposer sous ce nom ; ouvrez le panneau de redirection pour un mappage avancé."
+    "Type an alias beside a fetched model to expose it under that name, or open the redirect panel for advanced mapping.": "Saisissez un alias à côté d'un modèle récupéré pour l'exposer sous ce nom ; ouvrez le panneau de redirection pour un mappage avancé.",
+    "Test key": "Tester la clé",
+    "Test Result": "Résultat du test",
+    "{{name}} key #{{index}}": "Clé #{{index}} de {{name}}",
+    "Key #{{index}}": "Clé #{{index}}"
   }
 }

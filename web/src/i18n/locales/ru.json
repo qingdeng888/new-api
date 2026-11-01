@@ -7372,6 +7372,10 @@
     "Zoom": "Zoom",
     "Set alias": "Задать псевдоним",
     "Alias for {{model}}": "Псевдоним для {{model}}",
-    "Type an alias beside a fetched model to expose it under that name, or open the redirect panel for advanced mapping.": "Введите псевдоним рядом с полученной моделью, чтобы опубликовать её под этим именем; для расширенного сопоставления откройте панель перенаправления."
+    "Type an alias beside a fetched model to expose it under that name, or open the redirect panel for advanced mapping.": "Введите псевдоним рядом с полученной моделью, чтобы опубликовать её под этим именем; для расширенного сопоставления откройте панель перенаправления.",
+    "Test key": "Проверить ключ",
+    "Test Result": "Результат проверки",
+    "{{name}} key #{{index}}": "Ключ #{{index}} канала {{name}}",
+    "Key #{{index}}": "Ключ #{{index}}"
   }
 }

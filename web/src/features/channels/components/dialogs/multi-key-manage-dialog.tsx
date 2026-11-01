@@ -60,12 +60,20 @@ import {
   formatTimestamp,
   getMultiKeyStatusConfig,
   getMultiKeyConfirmMessage,
+  handleTestChannel,
   isDestructiveAction,
+  formatResponseTime,
 } from '../../lib'
 import type { KeyStatus, MultiKeyConfirmAction } from '../../types'
 import { useChannels } from '../channels-provider'
 import { StatisticsCard } from './multi-key-statistics-card'
 import { MultiKeyTableRowActions } from './multi-key-table-row-actions'
+
+type KeyTestState = {
+  status: 'testing' | 'success' | 'failed'
+  time?: number
+  message?: string
+}
 
 type MultiKeyManageDialogProps = {
   open: boolean
@@ -102,12 +110,14 @@ export function MultiKeyManageDialog({
   const [confirmAction, setConfirmAction] =
     useState<MultiKeyConfirmAction | null>(null)
   const [isPerformingAction, setIsPerformingAction] = useState(false)
+  const [keyTests, setKeyTests] = useState<Record<number, KeyTestState>>({})
 
   // Reset and load data when dialog opens
   useEffect(() => {
     if (open && currentRow) {
       setCurrentPage(1)
       setStatusFilter(null)
+      setKeyTests({})
       loadKeyStatus(1, pageSize, null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -153,6 +163,34 @@ export function MultiKeyManageDialog({
     setStatusFilter(newFilter)
     setCurrentPage(1)
     loadKeyStatus(1, pageSize, newFilter)
+  }
+
+  // Probe one key with the channel's first model; the result is shown per
+  // row and never changes the key's status, matching manual channel tests.
+  const handleTestKey = (keyIndex: number) => {
+    if (!currentRow || keyTests[keyIndex]?.status === 'testing') return
+    const firstModel =
+      currentRow.models
+        ?.split(',')
+        .map((model) => model.trim())
+        .find(Boolean) || undefined
+    setKeyTests((prev) => ({ ...prev, [keyIndex]: { status: 'testing' } }))
+    void handleTestChannel(
+      currentRow.id,
+      {
+        channelName: currentRow.name,
+        testModel: firstModel,
+        keyIndex,
+      },
+      (success, responseTime, error) => {
+        setKeyTests((prev) => ({
+          ...prev,
+          [keyIndex]: success
+            ? { status: 'success', time: responseTime }
+            : { status: 'failed', message: error || t('Test failed') },
+        }))
+      }
+    )
   }
 
   const handlePageChange = (newPage: number) => {
@@ -223,6 +261,47 @@ export function MultiKeyManageDialog({
         showDot
         copyable={false}
       />
+    )
+  }
+
+  const renderKeyTestResult = (keyIndex: number) => {
+    const state = keyTests[keyIndex]
+    if (!state) {
+      return <span className='text-muted-foreground text-sm'>-</span>
+    }
+    if (state.status === 'testing') {
+      return (
+        <span
+          className='text-muted-foreground flex items-center gap-1.5 text-sm'
+          aria-label={t('Testing...')}
+        >
+          <Loader2 className='h-3.5 w-3.5 animate-spin' aria-hidden='true' />
+          {t('Testing...')}
+        </span>
+      )
+    }
+    if (state.status === 'success') {
+      return (
+        <StatusBadge
+          label={
+            state.time !== undefined
+              ? formatResponseTime(state.time, t)
+              : t('Success')
+          }
+          variant='success'
+          showDot={false}
+          copyable={false}
+        />
+      )
+    }
+    const message = state.message || t('Test failed')
+    return (
+      <span
+        title={message}
+        className='text-destructive block max-w-[180px] truncate text-sm'
+      >
+        {message}
+      </span>
     )
   }
 
@@ -387,7 +466,7 @@ export function MultiKeyManageDialog({
             {!isLoading && !(keys.length === 0) && (
               <StaticDataTable
                 className='rounded-none border-0'
-                tableClassName='min-w-[800px]'
+                tableClassName='min-w-[960px]'
                 data={keys}
                 getRowKey={(key) => key.index}
                 columns={[
@@ -419,6 +498,13 @@ export function MultiKeyManageDialog({
                     cell: (key) => formatKeyTimestamp(key.disabled_time),
                   },
                   {
+                    id: 'test',
+                    header: t('Test Result'),
+                    className: 'w-44',
+                    cellClassName: 'text-sm',
+                    cell: (key) => renderKeyTestResult(key.index),
+                  },
+                  {
                     id: 'actions',
                     header: t('Actions'),
                     className: 'text-right',
@@ -427,6 +513,8 @@ export function MultiKeyManageDialog({
                         keyIndex={key.index}
                         status={key.status}
                         canDelete={canEditSensitive}
+                        isTesting={keyTests[key.index]?.status === 'testing'}
+                        onTest={() => handleTestKey(key.index)}
                         onAction={setConfirmAction}
                       />
                     ),

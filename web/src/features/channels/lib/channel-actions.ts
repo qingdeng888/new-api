@@ -90,9 +90,21 @@ function formatChannelTestDuration(responseTime?: number): string | undefined {
 function getChannelTestLabel(options?: {
   channelName?: string
   testModel?: string
+  keyIndex?: number
 }): string {
   const channelName = options?.channelName?.trim()
   const testModel = options?.testModel?.trim()
+  const keyIndex = options?.keyIndex
+
+  if (keyIndex !== undefined) {
+    if (channelName) {
+      return i18next.t('{{name}} key #{{index}}', {
+        name: channelName,
+        index: keyIndex + 1,
+      })
+    }
+    return i18next.t('Key #{{index}}', { index: keyIndex + 1 })
+  }
 
   if (channelName && testModel) {
     return i18next.t('Channel {{name}} model {{model}}', {
@@ -277,6 +289,7 @@ export async function handleTestChannel(
     testModel?: string
     endpointType?: string
     stream?: boolean
+    keyIndex?: number
     silent?: boolean
   },
   onTestComplete?: (
@@ -287,13 +300,20 @@ export async function handleTestChannel(
   ) => void
 ): Promise<void> {
   const payload =
-    options && (options.testModel || options.endpointType || options.stream)
+    options &&
+    (options.testModel ||
+      options.endpointType ||
+      options.stream ||
+      options.keyIndex !== undefined)
       ? {
           ...(options.testModel ? { model: options.testModel } : {}),
           ...(options.endpointType
             ? { endpoint_type: options.endpointType }
             : {}),
           ...(options.stream ? { stream: true } : {}),
+          ...(options.keyIndex !== undefined
+            ? { key_index: options.keyIndex }
+            : {}),
         }
       : undefined
 

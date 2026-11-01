@@ -7372,6 +7372,10 @@
     "Zoom": "ズーム",
     "Set alias": "エイリアスを設定",
     "Alias for {{model}}": "{{model}} のエイリアス",
-    "Type an alias beside a fetched model to expose it under that name, or open the redirect panel for advanced mapping.": "取得したモデルの横にエイリアスを入力すると、その名前で公開されます。高度なマッピングにはリダイレクトパネルを開いてください。"
+    "Type an alias beside a fetched model to expose it under that name, or open the redirect panel for advanced mapping.": "取得したモデルの横にエイリアスを入力すると、その名前で公開されます。高度なマッピングにはリダイレクトパネルを開いてください。",
+    "Test key": "キーをテスト",
+    "Test Result": "テスト結果",
+    "{{name}} key #{{index}}": "{{name}} キー #{{index}}",
+    "Key #{{index}}": "キー #{{index}}"
   }
 }

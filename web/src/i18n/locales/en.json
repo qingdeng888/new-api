@@ -7372,6 +7372,10 @@
     "Zoom": "Zoom",
     "Set alias": "Set alias",
     "Alias for {{model}}": "Alias for {{model}}",
-    "Type an alias beside a fetched model to expose it under that name, or open the redirect panel for advanced mapping.": "Type an alias beside a fetched model to expose it under that name, or open the redirect panel for advanced mapping."
+    "Type an alias beside a fetched model to expose it under that name, or open the redirect panel for advanced mapping.": "Type an alias beside a fetched model to expose it under that name, or open the redirect panel for advanced mapping.",
+    "Test key": "Test key",
+    "Test Result": "Test Result",
+    "{{name}} key #{{index}}": "{{name}} key #{{index}}",
+    "Key #{{index}}": "Key #{{index}}"
   }
 }
