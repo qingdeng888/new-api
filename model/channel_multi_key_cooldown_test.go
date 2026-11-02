@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -111,4 +112,48 @@ func TestUpdateChannelStatusDisableSupersedesCooldown(t *testing.T) {
 	assert.Equal(t, common.ChannelStatusAutoDisabled, stored.ChannelInfo.MultiKeyStatusList[0])
 	assert.NotContains(t, stored.ChannelInfo.MultiKeyCooldownUntil, 0)
 	assert.NotContains(t, stored.ChannelInfo.MultiKeyFailStreak, 0)
+}
+
+func TestValidateProxyBinding(t *testing.T) {
+	setupChannelStatusTest(t)
+	pool := &ProxyPool{
+		Name:        "binding-pool",
+		Proxies:     "socks5://10.9.0.1:1080\nhttp://10.9.0.2:8080",
+		CreatedTime: common.GetTimestamp(),
+	}
+	require.NoError(t, CreateProxyPool(pool))
+	RefreshProxyPoolCache()
+
+	// Empty inherits, direct dials without a proxy, plain URLs must parse.
+	require.NoError(t, ValidateProxyBinding(""))
+	require.NoError(t, ValidateProxyBinding(MultiKeyProxyDirect))
+	require.NoError(t, ValidateProxyBinding("socks5://user:pass@10.0.0.1:1080"))
+	require.Error(t, ValidateProxyBinding("ftp://nope:21"))
+
+	// Pool references must point at an existing pool with a known mode.
+	require.NoError(t, ValidateProxyBinding("pool:"+strconv.Itoa(pool.Id)+":random"))
+	require.NoError(t, ValidateProxyBinding("pool:"+strconv.Itoa(pool.Id)+":ordered"))
+	require.NoError(t, ValidateProxyBinding("pool:"+strconv.Itoa(pool.Id)+":fixed:1"))
+	require.Error(t, ValidateProxyBinding("pool:"+strconv.Itoa(pool.Id)+":weird"))
+	require.Error(t, ValidateProxyBinding("pool:999:random"))
+	require.Error(t, ValidateProxyBinding("pool:notanumber:random"))
+}
+
+func TestValidateProxyPoolRejectsInvalidDefinitions(t *testing.T) {
+	setupChannelStatusTest(t)
+	require.Error(t, CreateProxyPool(&ProxyPool{Name: "  ", Proxies: "socks5://10.0.0.1:1080"}))
+	require.Error(t, CreateProxyPool(&ProxyPool{Name: "empty", Proxies: "# only a comment\n\n"}))
+	require.Error(t, CreateProxyPool(&ProxyPool{Name: "bad-proxy", Proxies: "ftp://nope:21"}))
+
+	pool := &ProxyPool{
+		Name:        "normalize-pool",
+		Proxies:     "# header comment\nsocks5://10.8.0.1:1080\n\nhttp://10.8.0.2:8080",
+		CreatedTime: common.GetTimestamp(),
+	}
+	require.NoError(t, CreateProxyPool(pool))
+	assert.Equal(t, "socks5://10.8.0.1:1080\nhttp://10.8.0.2:8080", pool.Proxies)
+	assert.Equal(t, []string{"socks5://10.8.0.1:1080", "http://10.8.0.2:8080"}, pool.ProxyList())
+
+	duplicate := &ProxyPool{Name: "normalize-pool", Proxies: "socks5://10.8.0.3:1080", CreatedTime: common.GetTimestamp()}
+	require.Error(t, CreateProxyPool(duplicate))
 }

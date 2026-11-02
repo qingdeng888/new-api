@@ -2144,11 +2144,9 @@ func ManageMultiKeys(c *gin.Context) {
 		}
 
 		proxy := strings.TrimSpace(request.Proxy)
-		if proxy != "" && proxy != model.MultiKeyProxyDirect {
-			if _, err := common.ParseProxyURLStrict(proxy); err != nil {
-				common.ApiErrorT(c, "Invalid proxy address")
-				return
-			}
+		if err := model.ValidateProxyBinding(proxy); err != nil {
+			common.ApiErrorT(c, "Invalid proxy address")
+			return
 		}
 
 		if proxy == "" {

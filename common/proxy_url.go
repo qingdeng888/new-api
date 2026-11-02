@@ -75,3 +75,18 @@ func parseProxyURL(rawProxyURL string, allowLegacySuffix bool) (*url.URL, bool, 
 
 	return parsedURL, legacySuffixStripped, nil
 }
+
+// RedactProxyURL masks the userinfo of a proxy URL so credentials never
+// reach logs; URLs that fail to parse are redacted wholesale.
+func RedactProxyURL(rawProxyURL string) string {
+	trimmed := strings.TrimSpace(rawProxyURL)
+	if trimmed == "" {
+		return ""
+	}
+	parsedURL, err := url.Parse(trimmed)
+	if err != nil || parsedURL.User == nil {
+		return trimmed
+	}
+	parsedURL.User = url.User("redacted")
+	return parsedURL.String()
+}

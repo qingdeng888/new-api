@@ -693,22 +693,35 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	if channel.ChannelInfo.IsMultiKey {
 		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, true)
 		common.SetContextKey(c, constant.ContextKeyChannelMultiKeyIndex, index)
-		// A per-key proxy overrides the channel-level proxy for every
-		// outbound request made while this key is in use; "direct" marks an
-		// explicitly proxy-free key.
-		if keyProxy := channel.ChannelInfo.MultiKeyProxies[index]; keyProxy != "" {
-			settings := channel.GetSetting()
-			if keyProxy == model.MultiKeyProxyDirect {
-				settings.Proxy = ""
-			} else {
-				settings.Proxy = keyProxy
-			}
-			common.SetContextKey(c, constant.ContextKeyChannelSetting, settings)
-		}
 	} else {
 		// 必须设置为 false，否则在重试到单个 key 的时候会导致日志显示错误
 		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, false)
 	}
+
+	// Resolve the effective proxy binding: a multi-key entry's own proxy
+	// wins over the channel-level one, and "pool:" references resolve to one
+	// concrete member per request so failing proxies transfer the traffic.
+	settings := channel.GetSetting()
+	proxyBinding := settings.Proxy
+	if channel.ChannelInfo.IsMultiKey {
+		if keyProxy := channel.ChannelInfo.MultiKeyProxies[index]; keyProxy != "" {
+			proxyBinding = keyProxy
+		}
+	}
+	switch {
+	case proxyBinding == "":
+		// Nothing bound; the channel setting already carries no proxy.
+	case proxyBinding == model.MultiKeyProxyDirect:
+		settings.Proxy = ""
+	default:
+		if resolved, handled := service.ResolvePoolProxyBinding(proxyBinding); handled {
+			settings.Proxy = resolved
+		} else {
+			settings.Proxy = proxyBinding
+		}
+	}
+	common.SetContextKey(c, constant.ContextKeyChannelSetting, settings)
+
 	// c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", key))
 	common.SetContextKey(c, constant.ContextKeyChannelKey, key)
 	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, channel.GetBaseURL())
