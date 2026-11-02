@@ -31,3 +31,16 @@ export function maskProxyUrl(url: string): string {
   const prefix = schemeEnd >= 0 ? url.slice(0, schemeEnd + 3) : ''
   return `${prefix}***@${url.slice(at + 1)}`
 }
+
+export interface ProxyTestResult {
+  url: string
+  ok: boolean
+  status?: number
+  latency_ms: number
+  error?: string
+}
+
+export type ProxyTestState = {
+  status: 'testing' | 'done'
+  result?: ProxyTestResult
+}

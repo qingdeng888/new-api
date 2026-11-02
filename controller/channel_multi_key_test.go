@@ -329,3 +329,40 @@ func TestSingleKeyChannelManagesKeyProxy(t *testing.T) {
 	})
 	assert.Equal(t, false, result["success"])
 }
+
+func TestProxyPoolConnectivityTestRejectsForeignEntries(t *testing.T) {
+	root := setupMultiKeyManageTestDB(t)
+	previous := operation_setting.GetProxyPoolSetting().Proxies
+	t.Cleanup(func() { operation_setting.GetProxyPoolSetting().Proxies = previous })
+	operation_setting.GetProxyPoolSetting().Proxies =
+		`[{"url":"socks5://10.6.0.1:1080","enabled":true}]`
+
+	callTest := func(request proxyConnectivityRequest) map[string]any {
+		payload, err := common.Marshal(request)
+		require.NoError(t, err)
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Set("id", root.Id)
+		c.Set("role", common.RoleRootUser)
+		c.Request = httptest.NewRequest(http.MethodPost, "/api/channel/proxy_pool/test", bytes.NewReader(payload))
+		c.Request.Header.Set("Content-Type", "application/json")
+		TestProxyPoolEntries(c)
+		var result map[string]any
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &result))
+		return result
+	}
+
+	// Empty selection is rejected.
+	assert.Equal(t, false, callTest(proxyConnectivityRequest{})["success"])
+
+	// A proxy that is not part of the pool cannot be probed through this API.
+	result := callTest(proxyConnectivityRequest{URLs: []string{"socks5://10.6.9.9:1080"}})
+	assert.Equal(t, false, result["success"])
+
+	// More than the per-run limit is rejected.
+	many := make([]string, proxyConnectivityMaxURLs+1)
+	for i := range many {
+		many[i] = "socks5://10.6.0.1:1080"
+	}
+	assert.Equal(t, false, callTest(proxyConnectivityRequest{URLs: many})["success"])
+}

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import type { ProxyPoolEntry } from './types'
+import type { ProxyPoolEntry, ProxyTestResult } from './types'
 
 interface ApiResponse<T = unknown> {
   success: boolean
@@ -39,5 +39,13 @@ export async function saveProxyPool(
   const res = await api.patch('/api/option/request_policy', {
     options: { 'proxy_pool_setting.proxies': JSON.stringify(entries) },
   })
+  return res.data
+}
+
+/** Probes the selected pool entries against a fixed public target. */
+export async function testProxyPool(
+  urls: string[]
+): Promise<ApiResponse<ProxyTestResult[]>> {
+  const res = await api.post('/api/channel/proxy_pool/test', { urls })
   return res.data
 }

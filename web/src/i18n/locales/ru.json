@@ -6221,7 +6221,7 @@
     "Test models and prompts from the browser": "Тестируйте модели и промпты в браузере",
     "Test selected models": "Проверить выбранные модели",
     "Testing all enabled channels started. Please refresh to see results.": "Тестирование всех включенных каналов начато. Пожалуйста, обновите страницу, чтобы увидеть результаты.",
-    "Testing...": "Тестирование...",
+    "Testing...": "Проверка…",
     "Text": "Текст",
     "Text description of the desired image": "Текстовое описание желаемого изображения",
     "Text description of the desired video": "Текстовое описание желаемого видео",
@@ -7415,6 +7415,16 @@
     "Pin one proxy from the pool. Traffic moves to another healthy entry while it is failing.": "Закрепляет один прокси из пула. При сбое трафик переходит на другую рабочую запись.",
     "Removed proxy: {{url}}": "Прокси удалён: {{url}}",
     "Key Management": "Управление ключами",
-    "Failed to save proxy pool": "Не удалось сохранить пул прокси"
+    "Failed to save proxy pool": "Не удалось сохранить пул прокси",
+    "Test result": "Результат проверки",
+    "Test selected ({{count}})": "Проверить выбранные ({{count}})",
+    "Test this proxy": "Проверить этот прокси",
+    "Select all proxies": "Выбрать все прокси",
+    "Select {{note}}": "Выбрать {{note}}",
+    "{{latency}}ms · HTTP {{status}}": "{{latency}}ms · HTTP {{status}}",
+    "Unreachable": "Недоступен",
+    "All {{count}} proxies are reachable": "Все прокси ({{count}}) доступны",
+    "{{failed}} of {{count}} proxies failed": "Не прошли проверку {{failed}} из {{count}} прокси",
+    "Failed to test proxies": "Не удалось проверить прокси"
   }
 }

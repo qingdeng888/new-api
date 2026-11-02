@@ -16,9 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Plus, RotateCcw, Trash2, Upload } from 'lucide-react'
+import { Loader2, Pencil, Plus, Trash2, Upload, Zap } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { CopyButton } from '@/components/copy-button'
@@ -26,13 +27,20 @@ import { StaticDataTable } from '@/components/data-table/static/static-data-tabl
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { isOptionalProxyURL } from '@/features/channels/lib'
+import { getServerMessage } from '@/lib/server-error-message'
 
+import { testProxyPool } from '../api'
 import { useProxyPool, useSaveProxyPool } from '../hooks/use-proxy-pool'
-import { maskProxyUrl, type ProxyPoolEntry } from '../types'
+import {
+  maskProxyUrl,
+  type ProxyPoolEntry,
+  type ProxyTestResult,
+} from '../types'
 
 type EditorState = {
   index: number | null
@@ -48,6 +56,11 @@ const EMPTY_EDITOR: EditorState = {
   enabled: true,
 }
 
+type TestState = {
+  status: 'testing' | 'done'
+  result?: ProxyTestResult
+}
+
 export function ProxyPoolTable() {
   const { t } = useTranslation()
   const { data: entries = [], isLoading } = useProxyPool()
@@ -56,6 +69,8 @@ export function ProxyPoolTable() {
   const [bulkOpen, setBulkOpen] = useState(false)
   const [bulkText, setBulkText] = useState('')
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [tests, setTests] = useState<Record<string, TestState>>({})
 
   const editorInvalid = useMemo(() => {
     if (!editor) return false
@@ -64,6 +79,31 @@ export function ProxyPoolTable() {
     if (url === 'direct') return false
     return !isOptionalProxyURL(url)
   }, [editor])
+
+  const selectedUrls = useMemo(
+    () => entries.map((entry) => entry.url).filter((url) => selected.has(url)),
+    [entries, selected]
+  )
+  const allSelected =
+    entries.length > 0 && selectedUrls.length === entries.length
+  const isTesting = Object.values(tests).some(
+    (state) => state.status === 'testing'
+  )
+
+  const toggleSelection = (url: string, checked: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(url)
+      else next.delete(url)
+      return next
+    })
+  }
+
+  const toggleAll = (checked: boolean) => {
+    setSelected(
+      checked ? new Set(entries.map((entry) => entry.url)) : new Set()
+    )
+  }
 
   const persist = (next: ProxyPoolEntry[]) => savePool.mutate(next)
 
@@ -93,7 +133,15 @@ export function ProxyPoolTable() {
 
   const handleDelete = () => {
     if (deleteIndex === null) return
+    const removed = entries[deleteIndex]
     persist(entries.filter((_, i) => i !== deleteIndex))
+    if (removed) {
+      setSelected((prev) => {
+        const next = new Set(prev)
+        next.delete(removed.url)
+        return next
+      })
+    }
     setDeleteIndex(null)
   }
 
@@ -123,6 +171,97 @@ export function ProxyPoolTable() {
     setBulkText('')
   }
 
+  // Probes every requested proxy against a fixed public target; the backend
+  // only accepts entries that belong to the pool.
+  const runTests = async (urls: string[]) => {
+    if (urls.length === 0) return
+    setTests((prev) => {
+      const next = { ...prev }
+      for (const url of urls) next[url] = { status: 'testing' }
+      return next
+    })
+    try {
+      const response = await testProxyPool(urls)
+      if (!response.success) {
+        toast.error(getServerMessage(response) || t('Failed to test proxies'))
+        setTests((prev) => {
+          const next = { ...prev }
+          for (const url of urls) delete next[url]
+          return next
+        })
+        return
+      }
+      const results = response.data ?? []
+      setTests((prev) => {
+        const next = { ...prev }
+        for (const result of results) {
+          next[result.url] = { status: 'done', result }
+        }
+        return next
+      })
+      const failed = results.filter((result) => !result.ok).length
+      if (failed === 0) {
+        toast.success(
+          t('All {{count}} proxies are reachable', { count: results.length })
+        )
+      } else {
+        toast.warning(
+          t('{{failed}} of {{count}} proxies failed', {
+            failed,
+            count: results.length,
+          })
+        )
+      }
+    } catch {
+      toast.error(t('Failed to test proxies'))
+      setTests((prev) => {
+        const next = { ...prev }
+        for (const url of urls) delete next[url]
+        return next
+      })
+    }
+  }
+
+  const renderTestResult = (url: string) => {
+    const state = tests[url]
+    if (!state) {
+      return <span className='text-muted-foreground text-sm'>-</span>
+    }
+    if (state.status === 'testing') {
+      return (
+        <span className='text-muted-foreground flex items-center gap-1.5 text-xs'>
+          <Loader2 className='h-3.5 w-3.5 animate-spin' />
+          {t('Testing...')}
+        </span>
+      )
+    }
+    const result = state.result
+    if (!result) {
+      return <span className='text-muted-foreground text-sm'>-</span>
+    }
+    if (result.ok) {
+      return (
+        <StatusBadge
+          label={t('{{latency}}ms · HTTP {{status}}', {
+            latency: result.latency_ms,
+            status: result.status ?? '-',
+          })}
+          variant='success'
+          showDot={false}
+          copyable={false}
+        />
+      )
+    }
+    return (
+      <span
+        title={result.error}
+        className='text-destructive block max-w-[220px] truncate text-xs'
+      >
+        {result.error || t('Unreachable')}
+      </span>
+    )
+  }
+
   return (
     <>
       <div className='flex flex-wrap items-center justify-between gap-2'>
@@ -140,6 +279,19 @@ export function ProxyPoolTable() {
             <Upload className='mr-1.5 h-4 w-4' />
             {t('Bulk add')}
           </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            disabled={selectedUrls.length === 0 || isTesting}
+            onClick={() => runTests(selectedUrls)}
+          >
+            {isTesting ? (
+              <Loader2 className='mr-1.5 h-4 w-4 animate-spin' />
+            ) : (
+              <Zap className='mr-1.5 h-4 w-4' />
+            )}
+            {t('Test selected ({{count}})', { count: selectedUrls.length })}
+          </Button>
         </div>
       </div>
 
@@ -150,6 +302,29 @@ export function ProxyPoolTable() {
         emptyContent={t('No proxies configured yet.')}
         columns={[
           {
+            id: 'select',
+            header: (
+              <Checkbox
+                aria-label={t('Select all proxies')}
+                checked={allSelected}
+                indeterminate={selectedUrls.length > 0 && !allSelected}
+                onCheckedChange={(checked) => toggleAll(checked === true)}
+              />
+            ),
+            className: 'w-10',
+            cell: (entry) => (
+              <Checkbox
+                aria-label={t('Select {{note}}', {
+                  note: entry.note || maskProxyUrl(entry.url),
+                })}
+                checked={selected.has(entry.url)}
+                onCheckedChange={(checked) =>
+                  toggleSelection(entry.url, checked === true)
+                }
+              />
+            ),
+          },
+          {
             id: 'note',
             header: t('Note'),
             className: 'w-40',
@@ -159,7 +334,7 @@ export function ProxyPoolTable() {
           {
             id: 'url',
             header: t('Proxy address'),
-            className: 'min-w-[260px]',
+            className: 'min-w-[240px]',
             cell: (entry) => (
               <span className='flex min-w-0 items-center gap-1.5'>
                 <code className='bg-muted min-w-0 truncate rounded px-1.5 py-0.5 font-mono text-xs'>
@@ -178,7 +353,7 @@ export function ProxyPoolTable() {
           {
             id: 'status',
             header: t('Status'),
-            className: 'w-28',
+            className: 'w-24',
             cell: (entry) => (
               <StatusBadge
                 label={entry.enabled ? t('Enabled') : t('Disabled')}
@@ -203,13 +378,34 @@ export function ProxyPoolTable() {
             ),
           },
           {
+            id: 'test',
+            header: t('Test result'),
+            className: 'min-w-[180px]',
+            cell: (entry) => renderTestResult(entry.url),
+          },
+          {
             id: 'actions',
             header: t('Actions'),
-            className: 'w-40 text-right',
+            className: 'w-44 text-right',
             cell: (entry) => {
               const index = entries.indexOf(entry)
+              const testing = tests[entry.url]?.status === 'testing'
               return (
                 <div className='flex justify-end gap-1'>
+                  <Button
+                    variant='ghost'
+                    size='icon-sm'
+                    aria-label={t('Test this proxy')}
+                    title={t('Test this proxy')}
+                    disabled={testing}
+                    onClick={() => void runTests([entry.url])}
+                  >
+                    {testing ? (
+                      <Loader2 className='h-4 w-4 animate-spin' />
+                    ) : (
+                      <Zap className='h-4 w-4' />
+                    )}
+                  </Button>
                   <Button
                     variant='ghost'
                     size='icon-sm'
@@ -223,7 +419,7 @@ export function ProxyPoolTable() {
                       })
                     }
                   >
-                    <RotateCcw className='h-4 w-4' />
+                    <Pencil className='h-4 w-4' />
                   </Button>
                   <Button
                     variant='ghost'

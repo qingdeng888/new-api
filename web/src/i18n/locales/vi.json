@@ -6221,7 +6221,7 @@
     "Test models and prompts from the browser": "Kiểm thử mô hình và prompt trong trình duyệt",
     "Test selected models": "Kiểm tra các mô hình đã chọn",
     "Testing all enabled channels started. Please refresh to see results.": "Bắt đầu kiểm tra tất cả các kênh đã kích hoạt. Vui lòng làm mới để xem kết quả.",
-    "Testing...": "Đang kiểm tra...",
+    "Testing...": "Đang kiểm tra…",
     "Text": "Văn bản",
     "Text description of the desired image": "Mô tả văn bản cho ảnh mong muốn",
     "Text description of the desired video": "Mô tả văn bản cho video mong muốn",
@@ -7415,6 +7415,16 @@
     "Pin one proxy from the pool. Traffic moves to another healthy entry while it is failing.": "Gắn cố định một proxy trong pool. Khi lỗi, lưu lượng chuyển sang proxy khác còn hoạt động.",
     "Removed proxy: {{url}}": "Proxy đã bị xóa: {{url}}",
     "Key Management": "Quản lý khóa",
-    "Failed to save proxy pool": "Lưu proxy pool thất bại"
+    "Failed to save proxy pool": "Lưu proxy pool thất bại",
+    "Test result": "Kết quả kiểm tra",
+    "Test selected ({{count}})": "Kiểm tra mục đã chọn ({{count}})",
+    "Test this proxy": "Kiểm tra proxy này",
+    "Select all proxies": "Chọn tất cả proxy",
+    "Select {{note}}": "Chọn {{note}}",
+    "{{latency}}ms · HTTP {{status}}": "{{latency}}ms · HTTP {{status}}",
+    "Unreachable": "Không thể kết nối",
+    "All {{count}} proxies are reachable": "Tất cả {{count}} proxy đều kết nối được",
+    "{{failed}} of {{count}} proxies failed": "{{failed}}/{{count}} proxy thất bại",
+    "Failed to test proxies": "Kiểm tra proxy thất bại"
   }
 }

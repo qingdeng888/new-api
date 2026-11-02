@@ -7415,6 +7415,16 @@
     "Pin one proxy from the pool. Traffic moves to another healthy entry while it is failing.": "Pin one proxy from the pool. Traffic moves to another healthy entry while it is failing.",
     "Removed proxy: {{url}}": "Removed proxy: {{url}}",
     "Key Management": "Key Management",
-    "Failed to save proxy pool": "Failed to save proxy pool"
+    "Failed to save proxy pool": "Failed to save proxy pool",
+    "Test result": "Test result",
+    "Test selected ({{count}})": "Test selected ({{count}})",
+    "Test this proxy": "Test this proxy",
+    "Select all proxies": "Select all proxies",
+    "Select {{note}}": "Select {{note}}",
+    "{{latency}}ms · HTTP {{status}}": "{{latency}}ms · HTTP {{status}}",
+    "Unreachable": "Unreachable",
+    "All {{count}} proxies are reachable": "All {{count}} proxies are reachable",
+    "{{failed}} of {{count}} proxies failed": "{{failed}} of {{count}} proxies failed",
+    "Failed to test proxies": "Failed to test proxies"
   }
 }
