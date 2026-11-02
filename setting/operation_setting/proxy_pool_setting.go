@@ -243,6 +243,16 @@ func PruneProxyPoolHealth() {
 	}
 }
 
+// ResolveProxyBinding resolves a stored proxy binding to a concrete proxy
+// URL. Pool bindings pick a healthy member; any other value (direct, a
+// concrete URL, garbage) passes through unchanged.
+func ResolveProxyBinding(binding string) string {
+	if resolved, ok := PickProxyPoolMember(binding); ok {
+		return resolved
+	}
+	return binding
+}
+
 // IsProxyPoolBinding reports whether the binding references the global pool.
 func IsProxyPoolBinding(binding string) bool {
 	return binding == "pool" || strings.HasPrefix(binding, "pool:")
