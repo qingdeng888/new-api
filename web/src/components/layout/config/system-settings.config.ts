@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import type { TFunction } from 'i18next'
 import {
   Box,
+  Globe,
   Route,
   CreditCard,
   Layout,
@@ -33,6 +34,7 @@ import { getBillingSectionNavItems } from '@/features/system-settings/billing/se
 import { getContentSectionNavItems } from '@/features/system-settings/content/section-registry.tsx'
 import { getModelsSectionNavItems } from '@/features/system-settings/models/section-registry.tsx'
 import { getOperationsSectionNavItems } from '@/features/system-settings/operations/section-registry.tsx'
+import { getProxyPoolSectionNavItems } from '@/features/system-settings/proxy-pool/section-registry.tsx'
 import { getPolicySectionNavItems } from '@/features/system-settings/request-policies/section-registry'
 import { getSecuritySectionNavItems } from '@/features/system-settings/security/section-registry.tsx'
 import { getSiteSectionNavItems } from '@/features/system-settings/site/section-registry.tsx'
@@ -92,6 +94,11 @@ function getSystemSettingsNavGroups(
           title: t('Console Content'),
           icon: Layout,
           items: getContentSectionNavItems(t),
+        },
+        {
+          title: t('Proxy pools'),
+          icon: Globe,
+          items: getProxyPoolSectionNavItems(t),
         },
         {
           title: t('Operations'),

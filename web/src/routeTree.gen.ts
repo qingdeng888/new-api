@@ -66,6 +66,8 @@ import { Route as AuthenticatedSystemSettingsModelsIndexRouteImport } from './ro
 import { Route as AuthenticatedSystemSettingsModelsSectionRouteImport } from './routes/_authenticated/system-settings/models/$section'
 import { Route as AuthenticatedSystemSettingsOperationsIndexRouteImport } from './routes/_authenticated/system-settings/operations/index'
 import { Route as AuthenticatedSystemSettingsOperationsSectionRouteImport } from './routes/_authenticated/system-settings/operations/$section'
+import { Route as AuthenticatedSystemSettingsProxyPoolIndexRouteImport } from './routes/_authenticated/system-settings/proxy-pool/index'
+import { Route as AuthenticatedSystemSettingsProxyPoolSectionRouteImport } from './routes/_authenticated/system-settings/proxy-pool/$section'
 import { Route as AuthenticatedSystemSettingsRequestPoliciesIndexRouteImport } from './routes/_authenticated/system-settings/request-policies/index'
 import { Route as AuthenticatedSystemSettingsRequestPoliciesSectionRouteImport } from './routes/_authenticated/system-settings/request-policies/$section'
 import { Route as AuthenticatedSystemSettingsSecurityIndexRouteImport } from './routes/_authenticated/system-settings/security/index'
@@ -385,6 +387,18 @@ const AuthenticatedSystemSettingsOperationsSectionRoute =
     path: '/operations/$section',
     getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
   } as any)
+const AuthenticatedSystemSettingsProxyPoolIndexRoute =
+  AuthenticatedSystemSettingsProxyPoolIndexRouteImport.update({
+    id: '/proxy-pool/',
+    path: '/proxy-pool/',
+    getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedSystemSettingsProxyPoolSectionRoute =
+  AuthenticatedSystemSettingsProxyPoolSectionRouteImport.update({
+    id: '/proxy-pool/$section',
+    path: '/proxy-pool/$section',
+    getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
+  } as any)
 const AuthenticatedSystemSettingsRequestPoliciesIndexRoute =
   AuthenticatedSystemSettingsRequestPoliciesIndexRouteImport.update({
     id: '/request-policies/',
@@ -473,6 +487,7 @@ export interface FileRoutesByFullPath {
   '/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
   '/system-settings/models/$section': typeof AuthenticatedSystemSettingsModelsSectionRoute
   '/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
+  '/system-settings/proxy-pool/$section': typeof AuthenticatedSystemSettingsProxyPoolSectionRoute
   '/system-settings/request-policies/$section': typeof AuthenticatedSystemSettingsRequestPoliciesSectionRoute
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
@@ -481,6 +496,7 @@ export interface FileRoutesByFullPath {
   '/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
   '/system-settings/models/': typeof AuthenticatedSystemSettingsModelsIndexRoute
   '/system-settings/operations/': typeof AuthenticatedSystemSettingsOperationsIndexRoute
+  '/system-settings/proxy-pool/': typeof AuthenticatedSystemSettingsProxyPoolIndexRoute
   '/system-settings/request-policies/': typeof AuthenticatedSystemSettingsRequestPoliciesIndexRoute
   '/system-settings/security/': typeof AuthenticatedSystemSettingsSecurityIndexRoute
   '/system-settings/site/': typeof AuthenticatedSystemSettingsSiteIndexRoute
@@ -535,6 +551,7 @@ export interface FileRoutesByTo {
   '/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
   '/system-settings/models/$section': typeof AuthenticatedSystemSettingsModelsSectionRoute
   '/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
+  '/system-settings/proxy-pool/$section': typeof AuthenticatedSystemSettingsProxyPoolSectionRoute
   '/system-settings/request-policies/$section': typeof AuthenticatedSystemSettingsRequestPoliciesSectionRoute
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
@@ -543,6 +560,7 @@ export interface FileRoutesByTo {
   '/system-settings/content': typeof AuthenticatedSystemSettingsContentIndexRoute
   '/system-settings/models': typeof AuthenticatedSystemSettingsModelsIndexRoute
   '/system-settings/operations': typeof AuthenticatedSystemSettingsOperationsIndexRoute
+  '/system-settings/proxy-pool': typeof AuthenticatedSystemSettingsProxyPoolIndexRoute
   '/system-settings/request-policies': typeof AuthenticatedSystemSettingsRequestPoliciesIndexRoute
   '/system-settings/security': typeof AuthenticatedSystemSettingsSecurityIndexRoute
   '/system-settings/site': typeof AuthenticatedSystemSettingsSiteIndexRoute
@@ -601,6 +619,7 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
   '/_authenticated/system-settings/models/$section': typeof AuthenticatedSystemSettingsModelsSectionRoute
   '/_authenticated/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
+  '/_authenticated/system-settings/proxy-pool/$section': typeof AuthenticatedSystemSettingsProxyPoolSectionRoute
   '/_authenticated/system-settings/request-policies/$section': typeof AuthenticatedSystemSettingsRequestPoliciesSectionRoute
   '/_authenticated/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/_authenticated/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
@@ -609,6 +628,7 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
   '/_authenticated/system-settings/models/': typeof AuthenticatedSystemSettingsModelsIndexRoute
   '/_authenticated/system-settings/operations/': typeof AuthenticatedSystemSettingsOperationsIndexRoute
+  '/_authenticated/system-settings/proxy-pool/': typeof AuthenticatedSystemSettingsProxyPoolIndexRoute
   '/_authenticated/system-settings/request-policies/': typeof AuthenticatedSystemSettingsRequestPoliciesIndexRoute
   '/_authenticated/system-settings/security/': typeof AuthenticatedSystemSettingsSecurityIndexRoute
   '/_authenticated/system-settings/site/': typeof AuthenticatedSystemSettingsSiteIndexRoute
@@ -666,6 +686,7 @@ export interface FileRouteTypes {
     | '/system-settings/content/$section'
     | '/system-settings/models/$section'
     | '/system-settings/operations/$section'
+    | '/system-settings/proxy-pool/$section'
     | '/system-settings/request-policies/$section'
     | '/system-settings/security/$section'
     | '/system-settings/site/$section'
@@ -674,6 +695,7 @@ export interface FileRouteTypes {
     | '/system-settings/content/'
     | '/system-settings/models/'
     | '/system-settings/operations/'
+    | '/system-settings/proxy-pool/'
     | '/system-settings/request-policies/'
     | '/system-settings/security/'
     | '/system-settings/site/'
@@ -728,6 +750,7 @@ export interface FileRouteTypes {
     | '/system-settings/content/$section'
     | '/system-settings/models/$section'
     | '/system-settings/operations/$section'
+    | '/system-settings/proxy-pool/$section'
     | '/system-settings/request-policies/$section'
     | '/system-settings/security/$section'
     | '/system-settings/site/$section'
@@ -736,6 +759,7 @@ export interface FileRouteTypes {
     | '/system-settings/content'
     | '/system-settings/models'
     | '/system-settings/operations'
+    | '/system-settings/proxy-pool'
     | '/system-settings/request-policies'
     | '/system-settings/security'
     | '/system-settings/site'
@@ -793,6 +817,7 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/content/$section'
     | '/_authenticated/system-settings/models/$section'
     | '/_authenticated/system-settings/operations/$section'
+    | '/_authenticated/system-settings/proxy-pool/$section'
     | '/_authenticated/system-settings/request-policies/$section'
     | '/_authenticated/system-settings/security/$section'
     | '/_authenticated/system-settings/site/$section'
@@ -801,6 +826,7 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/content/'
     | '/_authenticated/system-settings/models/'
     | '/_authenticated/system-settings/operations/'
+    | '/_authenticated/system-settings/proxy-pool/'
     | '/_authenticated/system-settings/request-policies/'
     | '/_authenticated/system-settings/security/'
     | '/_authenticated/system-settings/site/'
@@ -1226,6 +1252,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSystemSettingsOperationsSectionRouteImport
       parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
     }
+    '/_authenticated/system-settings/proxy-pool/': {
+      id: '/_authenticated/system-settings/proxy-pool/'
+      path: '/proxy-pool'
+      fullPath: '/system-settings/proxy-pool/'
+      preLoaderRoute: typeof AuthenticatedSystemSettingsProxyPoolIndexRouteImport
+      parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
+    }
+    '/_authenticated/system-settings/proxy-pool/$section': {
+      id: '/_authenticated/system-settings/proxy-pool/$section'
+      path: '/proxy-pool/$section'
+      fullPath: '/system-settings/proxy-pool/$section'
+      preLoaderRoute: typeof AuthenticatedSystemSettingsProxyPoolSectionRouteImport
+      parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
+    }
     '/_authenticated/system-settings/request-policies/': {
       id: '/_authenticated/system-settings/request-policies/'
       path: '/request-policies'
@@ -1304,6 +1344,7 @@ interface AuthenticatedSystemSettingsRouteRouteChildren {
   AuthenticatedSystemSettingsContentSectionRoute: typeof AuthenticatedSystemSettingsContentSectionRoute
   AuthenticatedSystemSettingsModelsSectionRoute: typeof AuthenticatedSystemSettingsModelsSectionRoute
   AuthenticatedSystemSettingsOperationsSectionRoute: typeof AuthenticatedSystemSettingsOperationsSectionRoute
+  AuthenticatedSystemSettingsProxyPoolSectionRoute: typeof AuthenticatedSystemSettingsProxyPoolSectionRoute
   AuthenticatedSystemSettingsRequestPoliciesSectionRoute: typeof AuthenticatedSystemSettingsRequestPoliciesSectionRoute
   AuthenticatedSystemSettingsSecuritySectionRoute: typeof AuthenticatedSystemSettingsSecuritySectionRoute
   AuthenticatedSystemSettingsSiteSectionRoute: typeof AuthenticatedSystemSettingsSiteSectionRoute
@@ -1312,6 +1353,7 @@ interface AuthenticatedSystemSettingsRouteRouteChildren {
   AuthenticatedSystemSettingsContentIndexRoute: typeof AuthenticatedSystemSettingsContentIndexRoute
   AuthenticatedSystemSettingsModelsIndexRoute: typeof AuthenticatedSystemSettingsModelsIndexRoute
   AuthenticatedSystemSettingsOperationsIndexRoute: typeof AuthenticatedSystemSettingsOperationsIndexRoute
+  AuthenticatedSystemSettingsProxyPoolIndexRoute: typeof AuthenticatedSystemSettingsProxyPoolIndexRoute
   AuthenticatedSystemSettingsRequestPoliciesIndexRoute: typeof AuthenticatedSystemSettingsRequestPoliciesIndexRoute
   AuthenticatedSystemSettingsSecurityIndexRoute: typeof AuthenticatedSystemSettingsSecurityIndexRoute
   AuthenticatedSystemSettingsSiteIndexRoute: typeof AuthenticatedSystemSettingsSiteIndexRoute
@@ -1331,6 +1373,8 @@ const AuthenticatedSystemSettingsRouteRouteChildren: AuthenticatedSystemSettings
       AuthenticatedSystemSettingsModelsSectionRoute,
     AuthenticatedSystemSettingsOperationsSectionRoute:
       AuthenticatedSystemSettingsOperationsSectionRoute,
+    AuthenticatedSystemSettingsProxyPoolSectionRoute:
+      AuthenticatedSystemSettingsProxyPoolSectionRoute,
     AuthenticatedSystemSettingsRequestPoliciesSectionRoute:
       AuthenticatedSystemSettingsRequestPoliciesSectionRoute,
     AuthenticatedSystemSettingsSecuritySectionRoute:
@@ -1347,6 +1391,8 @@ const AuthenticatedSystemSettingsRouteRouteChildren: AuthenticatedSystemSettings
       AuthenticatedSystemSettingsModelsIndexRoute,
     AuthenticatedSystemSettingsOperationsIndexRoute:
       AuthenticatedSystemSettingsOperationsIndexRoute,
+    AuthenticatedSystemSettingsProxyPoolIndexRoute:
+      AuthenticatedSystemSettingsProxyPoolIndexRoute,
     AuthenticatedSystemSettingsRequestPoliciesIndexRoute:
       AuthenticatedSystemSettingsRequestPoliciesIndexRoute,
     AuthenticatedSystemSettingsSecurityIndexRoute:

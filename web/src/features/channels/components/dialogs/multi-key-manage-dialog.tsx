@@ -17,14 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient } from '@tanstack/react-query'
-import {
-  Loader2,
-  RefreshCw,
-  Trash2,
-  Power,
-  PowerOff,
-  Zap,
-} from 'lucide-react'
+import { Loader2, RefreshCw, Trash2, Power, PowerOff, Zap } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -45,6 +38,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import { useProxyPools } from '@/features/system-settings/proxy-pool/hooks/use-proxy-pools'
 import {
   ADMIN_PERMISSION_ACTIONS,
   ADMIN_PERMISSION_RESOURCES,
@@ -74,6 +68,8 @@ import {
   isDestructiveAction,
   formatResponseTime,
   isOptionalProxyURL,
+  parseProxyPoolBinding,
+  buildProxyPoolBinding,
 } from '../../lib'
 import type { KeyStatus, MultiKeyConfirmAction } from '../../types'
 import { useChannels } from '../channels-provider'
@@ -99,6 +95,7 @@ export function MultiKeyManageDialog({
   const { currentRow } = useChannels()
   const queryClient = useQueryClient()
   const currentUser = useAuthStore((s) => s.auth.user)
+  const { data: proxyPools = [] } = useProxyPools()
   const canEditSensitive = hasPermission(
     currentUser,
     ADMIN_PERMISSION_RESOURCES.CHANNEL,
@@ -123,9 +120,10 @@ export function MultiKeyManageDialog({
     useState<MultiKeyConfirmAction | null>(null)
   const [isPerformingAction, setIsPerformingAction] = useState(false)
   const [keyTests, setKeyTests] = useState<Record<number, KeyTestState>>({})
-  const [batchTest, setBatchTest] = useState<{ done: number; total: number } | null>(
-    null
-  )
+  const [batchTest, setBatchTest] = useState<{
+    done: number
+    total: number
+  } | null>(null)
   const batchRunRef = useRef(0)
   const [proxyEditor, setProxyEditor] = useState<{
     index: number
@@ -260,11 +258,66 @@ export function MultiKeyManageDialog({
     )
   }
 
+  const editorMode = (() => {
+    const parsed = parseProxyPoolBinding(proxyEditor?.value)
+    if (!parsed) return 'manual'
+    if (parsed.mode === 'random') return 'pool-random'
+    if (parsed.mode === 'ordered') return 'pool-ordered'
+    return 'pool-fixed'
+  })()
   const proxyEditorInvalid =
     proxyEditor !== null &&
+    editorMode === 'manual' &&
     proxyEditor.value.trim() !== '' &&
     proxyEditor.value.trim() !== 'direct' &&
     !isOptionalProxyURL(proxyEditor.value)
+
+  const setEditorBinding = (value: string) =>
+    setProxyEditor((prev) => (prev ? { ...prev, value } : prev))
+
+  const handleEditorModeChange = (mode: string | null) => {
+    if (mode === null) return
+    if (mode === 'manual') {
+      setEditorBinding('')
+      return
+    }
+    const parsed = parseProxyPoolBinding(proxyEditor?.value)
+    const poolId = parsed?.poolId ?? proxyPools[0]?.id ?? 0
+    if (!poolId) {
+      setEditorBinding('')
+      return
+    }
+    if (mode === 'pool-fixed') {
+      setEditorBinding(
+        buildProxyPoolBinding(poolId, 'fixed', parsed?.fixedIndex ?? 0)
+      )
+      return
+    }
+    setEditorBinding(
+      buildProxyPoolBinding(
+        poolId,
+        mode === 'pool-ordered' ? 'ordered' : 'random'
+      )
+    )
+  }
+
+  const describeProxyBinding = (value: string | undefined) => {
+    if (!value) return null
+    const parsed = parseProxyPoolBinding(value)
+    if (parsed) {
+      const poolName =
+        proxyPools.find((pool) => pool.id === parsed.poolId)?.name ??
+        t('Unknown pool')
+      const modeLabel =
+        parsed.mode === 'random'
+          ? t('Random rotation')
+          : parsed.mode === 'ordered'
+            ? t('Ordered rotation')
+            : t('Pinned pool proxy')
+      return poolName + ' · ' + modeLabel
+    }
+    return value
+  }
 
   // Save the per-key proxy: an empty value clears the override so the key
   // falls back to the channel-level proxy.
@@ -665,17 +718,19 @@ export function MultiKeyManageDialog({
                     id: 'proxy',
                     header: t('Proxy'),
                     className: 'min-w-[180px] max-w-[260px]',
-                    cell: (key) =>
-                      key.proxy ? (
+                    cell: (key) => {
+                      const label = describeProxyBinding(key.proxy)
+                      return label ? (
                         <span
                           title={key.proxy}
                           className='block max-w-[240px] truncate font-mono text-xs'
                         >
-                          {key.proxy}
+                          {label}
                         </span>
                       ) : (
                         <span className='text-muted-foreground text-sm'>-</span>
-                      ),
+                      )
+                    },
                   },
                   {
                     id: 'test',
@@ -693,10 +748,16 @@ export function MultiKeyManageDialog({
                         keyIndex={key.index}
                         status={key.status}
                         canDelete={canEditSensitive}
-                        isTesting={Boolean(batchTest) || keyTests[key.index]?.status === 'testing'}
+                        isTesting={
+                          Boolean(batchTest) ||
+                          keyTests[key.index]?.status === 'testing'
+                        }
                         onTest={() => handleTestKey(key.index)}
                         onSetProxy={() =>
-                          setProxyEditor({ index: key.index, value: key.proxy || '' })
+                          setProxyEditor({
+                            index: key.index,
+                            value: key.proxy || '',
+                          })
                         }
                         onAction={setConfirmAction}
                       />
@@ -762,30 +823,139 @@ export function MultiKeyManageDialog({
         )}
         bodyClassName='space-y-3'
       >
-        <Input
-          aria-label={t('Proxy Address')}
-          placeholder='http://user:pass@ip:port  |  socks5://user:pass@ip:port'
-          spellCheck={false}
-          value={proxyEditor?.value ?? ''}
-          onChange={(event) =>
-            setProxyEditor((prev) =>
-              prev ? { ...prev, value: event.target.value } : prev
-            )
-          }
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !proxyEditorInvalid) {
-              event.preventDefault()
-              void handleSaveProxy()
-            }
-          }}
-        />
-        {proxyEditorInvalid && (
-          <p className='text-destructive text-xs'>
-            {t(
-              'Proxy address must use HTTP, HTTPS, SOCKS5, or SOCKS5H and include a valid host'
+        <Select
+          value={editorMode}
+          onValueChange={handleEditorModeChange}
+          items={[
+            { value: 'manual', label: t('Manual proxy address') },
+            { value: 'pool-random', label: t('Random rotation') },
+            { value: 'pool-ordered', label: t('Ordered rotation') },
+            { value: 'pool-fixed', label: t('Pinned pool proxy') },
+          ]}
+        >
+          <SelectTrigger className='w-full sm:w-56'>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent alignItemWithTrigger={false}>
+            <SelectGroup>
+              <SelectItem value='manual'>
+                {t('Manual proxy address')}
+              </SelectItem>
+              <SelectItem value='pool-random'>
+                {t('Random rotation')}
+              </SelectItem>
+              <SelectItem value='pool-ordered'>
+                {t('Ordered rotation')}
+              </SelectItem>
+              <SelectItem value='pool-fixed'>
+                {t('Pinned pool proxy')}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        {editorMode === 'manual' && (
+          <>
+            <Input
+              aria-label={t('Proxy Address')}
+              placeholder='http://user:pass@ip:port  |  socks5://user:pass@ip:port'
+              spellCheck={false}
+              value={proxyEditor?.value ?? ''}
+              onChange={(event) =>
+                setProxyEditor((prev) =>
+                  prev ? { ...prev, value: event.target.value } : prev
+                )
+              }
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !proxyEditorInvalid) {
+                  event.preventDefault()
+                  void handleSaveProxy()
+                }
+              }}
+            />
+            {proxyEditorInvalid && (
+              <p className='text-destructive text-xs'>
+                {t(
+                  'Proxy address must use HTTP, HTTPS, SOCKS5, or SOCKS5H and include a valid host'
+                )}
+              </p>
             )}
-          </p>
+          </>
         )}
+        {editorMode !== 'manual' &&
+          (proxyPools.length === 0 ? (
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'No proxy pools configured yet. Create one in System Settings → Proxy pools first.'
+              )}
+            </p>
+          ) : (
+            <div className='flex flex-wrap gap-2'>
+              <Select
+                value={String(
+                  parseProxyPoolBinding(proxyEditor?.value)?.poolId ??
+                    proxyPools[0]?.id ??
+                    0
+                )}
+                onValueChange={(next) => {
+                  if (next === null) return
+                  setEditorBinding(
+                    buildProxyPoolBinding(
+                      Number.parseInt(next, 10),
+                      editorMode === 'pool-ordered'
+                        ? 'ordered'
+                        : editorMode === 'pool-fixed'
+                          ? 'fixed'
+                          : 'random',
+                      parseProxyPoolBinding(proxyEditor?.value)?.fixedIndex
+                    )
+                  )
+                }}
+                items={proxyPools.map((pool) => ({
+                  value: String(pool.id),
+                  label: pool.name,
+                }))}
+              >
+                <SelectTrigger className='w-full sm:w-56'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {proxyPools.map((pool) => (
+                      <SelectItem key={pool.id} value={String(pool.id)}>
+                        {pool.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              {editorMode === 'pool-fixed' && (
+                <Input
+                  type='number'
+                  min={0}
+                  className='w-28'
+                  value={
+                    parseProxyPoolBinding(proxyEditor?.value)?.fixedIndex ?? 0
+                  }
+                  onChange={(event) => {
+                    const poolId =
+                      parseProxyPoolBinding(proxyEditor?.value)?.poolId ??
+                      proxyPools[0]?.id ??
+                      0
+                    const memberIndex =
+                      Number.parseInt(event.target.value, 10) || 0
+                    setEditorBinding(
+                      buildProxyPoolBinding(
+                        poolId,
+                        'fixed',
+                        Math.max(0, memberIndex)
+                      )
+                    )
+                  }}
+                  aria-label={t('Fixed member index')}
+                />
+              )}
+            </div>
+          ))}
         <div className='flex justify-end gap-2'>
           <Button
             variant='outline'

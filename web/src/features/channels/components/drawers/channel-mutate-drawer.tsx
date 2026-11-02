@@ -208,6 +208,7 @@ import {
 } from '../../lib/task-plugin-base-url'
 import type { Channel } from '../../types'
 import { ChannelPluginExtensions } from '../channel-plugin-extensions'
+import { ChannelProxyField } from '../channel-proxy-field'
 import { ChannelQuickOptions } from '../channel-quick-options'
 import { ChannelTypeLogo } from '../channel-type-badge'
 import { useChannels } from '../channels-provider'
@@ -1807,7 +1808,9 @@ export function ChannelMutateDrawer({
       const panel = channelFormRef.current?.querySelector(
         '[role="tabpanel"]:not([hidden])'
       )
-      const invalid = panel?.querySelector<HTMLElement>('[aria-invalid="true"]')
+      const invalid = panel?.querySelector<HTMLElement>(
+        '[aria-invalid="true"]:not(div)'
+      )
       const item = invalid?.closest<HTMLElement>('[data-slot="form-item"]')
       const controls =
         'input:not([type="hidden"]), textarea, button, [contenteditable="true"], [tabindex]:not([tabindex="-1"])'
@@ -1854,13 +1857,8 @@ export function ChannelMutateDrawer({
         <FormItem>
           <FormLabel>{t('Proxy Address')}</FormLabel>
           <FormControl>
-            <Input placeholder={t('socks5://user:pass@host:port')} {...field} />
+            <ChannelProxyField value={field.value} onChange={field.onChange} />
           </FormControl>
-          <FormDescription>
-            {t(
-              'Network proxy for this channel (supports HTTP, HTTPS, SOCKS5, and SOCKS5H)'
-            )}
-          </FormDescription>
           <FormMessage />
         </FormItem>
       )}
