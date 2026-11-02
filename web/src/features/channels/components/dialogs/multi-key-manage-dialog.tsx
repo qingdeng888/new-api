@@ -38,7 +38,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { useProxyPools } from '@/features/system-settings/proxy-pool/hooks/use-proxy-pools'
 import {
   ADMIN_PERMISSION_ACTIONS,
   ADMIN_PERMISSION_RESOURCES,
@@ -68,8 +67,8 @@ import {
   isDestructiveAction,
   formatResponseTime,
   isOptionalProxyURL,
-  parseProxyPoolBinding,
-  buildProxyPoolBinding,
+  parseProxyBinding,
+  buildPoolBinding,
 } from '../../lib'
 import type { KeyStatus, MultiKeyConfirmAction } from '../../types'
 import { useChannels } from '../channels-provider'
@@ -95,7 +94,6 @@ export function MultiKeyManageDialog({
   const { currentRow } = useChannels()
   const queryClient = useQueryClient()
   const currentUser = useAuthStore((s) => s.auth.user)
-  const { data: proxyPools = [] } = useProxyPools()
   const canEditSensitive = hasPermission(
     currentUser,
     ADMIN_PERMISSION_RESOURCES.CHANNEL,
@@ -259,10 +257,10 @@ export function MultiKeyManageDialog({
   }
 
   const editorMode = (() => {
-    const parsed = parseProxyPoolBinding(proxyEditor?.value)
-    if (!parsed) return 'manual'
-    if (parsed.mode === 'random') return 'pool-random'
-    return 'pool-fixed'
+    const mode = parseProxyBinding(proxyEditor?.value).mode
+    if (mode === 'pool') return 'pool-random'
+    if (mode === 'pinned') return 'pool-pinned'
+    return 'manual'
   })()
   const proxyEditorInvalid =
     proxyEditor !== null &&
@@ -280,33 +278,29 @@ export function MultiKeyManageDialog({
       setEditorBinding('')
       return
     }
-    const parsed = parseProxyPoolBinding(proxyEditor?.value)
-    const poolId = parsed?.poolId ?? proxyPools[0]?.id ?? 0
-    if (!poolId) {
-      setEditorBinding('')
+    if (mode === 'pool-pinned') {
+      const parsed = parseProxyBinding(proxyEditor?.value)
+      setEditorBinding(buildPoolBinding(parsed.pinnedIndex ?? 0))
       return
     }
-    if (mode === 'pool-fixed') {
-      setEditorBinding(
-        buildProxyPoolBinding(poolId, 'fixed', parsed?.fixedIndex ?? 0)
-      )
-      return
-    }
-    setEditorBinding(buildProxyPoolBinding(poolId, 'random'))
+    setEditorBinding(buildPoolBinding())
   }
 
   const describeProxyBinding = (value: string | undefined) => {
     if (!value) return null
-    const parsed = parseProxyPoolBinding(value)
-    if (parsed) {
-      const poolName =
-        proxyPools.find((pool) => pool.id === parsed.poolId)?.name ??
-        t('Unknown pool')
-      const modeLabel =
-        parsed.mode === 'random' ? t('Random rotation') : t('Pinned pool proxy')
-      return poolName + ' · ' + modeLabel
+    const parsed = parseProxyBinding(value)
+    switch (parsed.mode) {
+      case 'direct':
+        return t('Direct connection (no proxy)')
+      case 'pool':
+        return t('Global proxy pool (random)')
+      case 'pinned':
+        return t('Global proxy pool (pinned #{{index}})', {
+          index: (parsed.pinnedIndex ?? 0) + 1,
+        })
+      default:
+        return value
     }
-    return value
   }
 
   // Save the per-key proxy: an empty value clears the override so the key
@@ -818,8 +812,8 @@ export function MultiKeyManageDialog({
           onValueChange={handleEditorModeChange}
           items={[
             { value: 'manual', label: t('Manual proxy address') },
-            { value: 'pool-random', label: t('Random rotation') },
-            { value: 'pool-fixed', label: t('Pinned pool proxy') },
+            { value: 'pool-random', label: t('Global proxy pool (random)') },
+            { value: 'pool-pinned', label: t('Global proxy pool (pinned)') },
           ]}
         >
           <SelectTrigger className='w-full sm:w-56'>
@@ -831,10 +825,10 @@ export function MultiKeyManageDialog({
                 {t('Manual proxy address')}
               </SelectItem>
               <SelectItem value='pool-random'>
-                {t('Random rotation')}
+                {t('Global proxy pool (random)')}
               </SelectItem>
-              <SelectItem value='pool-fixed'>
-                {t('Pinned pool proxy')}
+              <SelectItem value='pool-pinned'>
+                {t('Global proxy pool (pinned)')}
               </SelectItem>
             </SelectGroup>
           </SelectContent>
@@ -867,77 +861,35 @@ export function MultiKeyManageDialog({
             )}
           </>
         )}
-        {editorMode !== 'manual' &&
-          (proxyPools.length === 0 ? (
-            <p className='text-muted-foreground text-xs'>
-              {t(
-                'No proxy pools configured yet. Create one in System Settings → Proxy pools first.'
-              )}
-            </p>
-          ) : (
-            <div className='flex flex-wrap gap-2'>
-              <Select
-                value={String(
-                  parseProxyPoolBinding(proxyEditor?.value)?.poolId ??
-                    proxyPools[0]?.id ??
-                    0
-                )}
-                onValueChange={(next) => {
-                  if (next === null) return
-                  setEditorBinding(
-                    buildProxyPoolBinding(
-                      Number.parseInt(next, 10),
-                      editorMode === 'pool-fixed' ? 'fixed' : 'random',
-                      parseProxyPoolBinding(proxyEditor?.value)?.fixedIndex
-                    )
+        {editorMode === 'pool-pinned' && (
+          <div className='flex items-center gap-2'>
+            <Input
+              type='number'
+              min={1}
+              className='w-28'
+              value={(parseProxyBinding(proxyEditor?.value).pinnedIndex ?? 0) + 1}
+              onChange={(event) => {
+                const member = Number.parseInt(event.target.value, 10)
+                setEditorBinding(
+                  buildPoolBinding(
+                    Number.isInteger(member) && member > 0 ? member - 1 : 0
                   )
-                }}
-                items={proxyPools.map((pool) => ({
-                  value: String(pool.id),
-                  label: pool.name,
-                }))}
-              >
-                <SelectTrigger className='w-full sm:w-56'>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
-                  <SelectGroup>
-                    {proxyPools.map((pool) => (
-                      <SelectItem key={pool.id} value={String(pool.id)}>
-                        {pool.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              {editorMode === 'pool-fixed' && (
-                <Input
-                  type='number'
-                  min={0}
-                  className='w-28'
-                  value={
-                    parseProxyPoolBinding(proxyEditor?.value)?.fixedIndex ?? 0
-                  }
-                  onChange={(event) => {
-                    const poolId =
-                      parseProxyPoolBinding(proxyEditor?.value)?.poolId ??
-                      proxyPools[0]?.id ??
-                      0
-                    const memberIndex =
-                      Number.parseInt(event.target.value, 10) || 0
-                    setEditorBinding(
-                      buildProxyPoolBinding(
-                        poolId,
-                        'fixed',
-                        Math.max(0, memberIndex)
-                      )
-                    )
-                  }}
-                  aria-label={t('Fixed member index')}
-                />
-              )}
-            </div>
-          ))}
+                )
+              }}
+              aria-label={t('Pool member number')}
+            />
+            <span className='text-muted-foreground text-xs'>
+              {t('1-based position in the global proxy pool')}
+            </span>
+          </div>
+        )}
+        {editorMode !== 'manual' && (
+          <p className='text-muted-foreground text-xs'>
+            {t(
+              'Uses the proxies from System Settings → Request policies → Channel health. Failing proxies cool down and traffic transfers automatically.'
+            )}
+          </p>
+        )}
         <div className='flex justify-end gap-2'>
           <Button
             variant='outline'

@@ -398,16 +398,6 @@ func SetApiRouter(router *gin.Engine) {
 			vendorRoute.DELETE("/:id", controller.DeleteVendorMeta)
 		}
 
-	proxyPoolRoute := apiRouter.Group("/proxy_pool")
-	proxyPoolRoute.Use(middleware.AdminAuth())
-	{
-		proxyPoolRoute.GET("/", controller.GetProxyPools)
-		proxyPoolRoute.GET("/:id", controller.GetProxyPool)
-		proxyPoolRoute.POST("/", controller.CreateProxyPool)
-		proxyPoolRoute.PUT("/:id", controller.UpdateProxyPool)
-		proxyPoolRoute.DELETE("/:id", controller.DeleteProxyPool)
-	}
-
 	modelsRoute := apiRouter.Group("/models")
 	modelsRoute.Use(middleware.AdminAuth())
 		{

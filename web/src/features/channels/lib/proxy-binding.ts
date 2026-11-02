@@ -17,51 +17,41 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-/** Modes a proxy pool binding can use. */
-export type ProxyPoolBindingMode = 'random' | 'fixed'
-
-export interface ParsedProxyPoolBinding {
-  poolId: number
-  mode: ProxyPoolBindingMode
-  fixedIndex?: number
-}
-
 /**
- * Parses a `pool:<id>:(random|fixed:<n>)` binding; returns null for
- * anything else (plain URLs, direct, empty).
+ * Bindings address the single global proxy pool:
+ * "" inherits, "direct" dials without a proxy, "pool" rotates randomly over
+ * the pool, "pool:<n>" pins the n-th entry, anything else is a proxy URL.
  */
-export function parseProxyPoolBinding(
-  value: string | undefined
-): ParsedProxyPoolBinding | null {
-  const trimmed = value?.trim() || ''
-  const rest = trimmed.startsWith('pool:') ? trimmed.slice(5) : null
-  if (rest === null) return null
-  const parts = rest.split(':')
-  if (parts.length < 2) return null
-  const poolId = Number.parseInt(parts[0], 10)
-  if (!Number.isInteger(poolId) || poolId <= 0) return null
-  switch (parts[1]) {
-    case 'random':
-      if (parts.length !== 2) return null
-      return { poolId, mode: 'random' }
-    case 'fixed': {
-      if (parts.length !== 3) return null
-      const fixedIndex = Number.parseInt(parts[2], 10)
-      if (!Number.isInteger(fixedIndex) || fixedIndex < 0) return null
-      return { poolId, mode: 'fixed', fixedIndex }
-    }
-    default:
-      return null
-  }
+export type ProxyBindingMode = 'inherit' | 'direct' | 'pool' | 'pinned' | 'url'
+
+export interface ParsedProxyBinding {
+  mode: ProxyBindingMode
+  pinnedIndex?: number
 }
 
-export function buildProxyPoolBinding(
-  poolId: number,
-  mode: ProxyPoolBindingMode,
-  fixedIndex?: number
-): string {
-  if (mode === 'fixed') {
-    return `pool:${poolId}:fixed:${fixedIndex ?? 0}`
+export function parseProxyBinding(
+  value: string | undefined
+): ParsedProxyBinding {
+  const trimmed = value?.trim() || ''
+  if (!trimmed) return { mode: 'inherit' }
+  if (trimmed === 'direct') return { mode: 'direct' }
+  if (trimmed === 'pool') return { mode: 'pool' }
+  const rest = trimmed.startsWith('pool:') ? trimmed.slice(5) : null
+  if (rest !== null) {
+    const index = Number.parseInt(rest, 10)
+    if (Number.isInteger(index) && index >= 0 && String(index) === rest) {
+      return { mode: 'pinned', pinnedIndex: index }
+    }
   }
-  return `pool:${poolId}:${mode}`
+  return { mode: 'url' }
+}
+
+export function buildPoolBinding(pinnedIndex?: number): string {
+  return pinnedIndex === undefined ? 'pool' : `pool:${pinnedIndex}`
+}
+
+/** True when the binding references the global pool in any form. */
+export function isPoolBinding(value: string | undefined): boolean {
+  const mode = parseProxyBinding(value).mode
+  return mode === 'pool' || mode === 'pinned'
 }

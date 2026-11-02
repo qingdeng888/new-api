@@ -495,14 +495,14 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		// traffic to the remaining members. Client cancellations are not
 		// the proxy's fault.
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, http.ErrAbortHandler) {
-			service.MarkProxyTransportResult(info.ChannelSetting.Proxy, false)
+			operation_setting.MarkProxyTransportResult(info.ChannelSetting.Proxy, false)
 		}
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
 	if resp == nil {
 		return nil, errors.New("resp is nil")
 	}
-	service.MarkProxyTransportResult(info.ChannelSetting.Proxy, true)
+	operation_setting.MarkProxyTransportResult(info.ChannelSetting.Proxy, true)
 	if common2.DebugEnabled {
 		policy := service.NormalizeHTTPTransportPolicy(info.ChannelSetting)
 		logger.LogDebug(c, "http transport negotiated: host=%s protocol=%s shards=%d policy=%s negotiated=%s",

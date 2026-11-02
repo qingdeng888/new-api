@@ -285,6 +285,11 @@ func UpdateOption(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
+	case "proxy_pool_setting.proxies":
+		if _, err := operation_setting.ValidateProxyPoolDocument(option.Value.(string)); err != nil {
+			common.ApiErrorT(c, "Invalid proxy in the proxy pool: {{error}}", map[string]any{"error": err.Error()})
+			return
+		}
 	case operation_setting.ToolPriceOptionKey:
 		err = operation_setting.ValidateToolPricesJSON(option.Value.(string))
 		if err != nil {

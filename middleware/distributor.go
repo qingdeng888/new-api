@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -714,7 +715,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	case proxyBinding == model.MultiKeyProxyDirect:
 		settings.Proxy = ""
 	default:
-		if resolved, handled := service.ResolvePoolProxyBinding(proxyBinding); handled {
+		if resolved, handled := operation_setting.PickProxyPoolMember(proxyBinding); handled {
 			settings.Proxy = resolved
 		} else {
 			settings.Proxy = proxyBinding

@@ -997,19 +997,21 @@ test('an invalid setting in another category is revealed and focused on submissi
     target: { value: 'secret' },
   })
   await user.click(screen.getByRole('tab', { name: /Other Settings/ }))
-  fireEvent.change(screen.getByLabelText('Proxy Address'), {
+  fireEvent.change(screen.getByRole('textbox', { name: 'Proxy Address' }), {
     target: { value: 'invalid-proxy' },
   })
   await user.click(screen.getByRole('tab', { name: /Connection & Models/ }))
   await user.click(screen.getByRole('button', { name: 'Create Channel' }))
   await waitFor(() =>
-    expect(screen.getByLabelText('Proxy Address')).toHaveFocus()
+    expect(
+      screen.getByRole('textbox', { name: 'Proxy Address' })
+    ).toHaveFocus()
   )
   expect(screen.getByRole('tab', { name: /Other Settings/ })).toHaveAttribute(
     'aria-selected',
     'true'
   )
-  expect(screen.getByLabelText('Proxy Address')).toHaveAttribute(
+  expect(screen.getByRole('textbox', { name: 'Proxy Address' })).toHaveAttribute(
     'aria-invalid',
     'true'
   )
@@ -1762,13 +1764,15 @@ test('an invalid edit switches categories and replaces configured styling with t
   render(<ConfigurationHarness currentRow={editingChannel} />)
   await screen.findByDisplayValue('Existing channel')
   await user.click(screen.getByRole('tab', { name: /Other Settings/ }))
-  fireEvent.change(screen.getByLabelText('Proxy Address'), {
+  fireEvent.change(screen.getByRole('textbox', { name: 'Proxy Address' }), {
     target: { value: 'invalid-proxy' },
   })
   await user.click(screen.getByRole('tab', { name: /Connection & Models/ }))
   await user.click(screen.getByRole('button', { name: 'Update Channel' }))
   await waitFor(() =>
-    expect(screen.getByLabelText('Proxy Address')).toHaveFocus()
+    expect(
+      screen.getByRole('textbox', { name: 'Proxy Address' })
+    ).toHaveFocus()
   )
   expect(
     screen.getByRole('tab', { name: /Other Settings/ })
@@ -1779,7 +1783,7 @@ test('an invalid edit switches categories and replaces configured styling with t
     within(block).queryByRole('img', { name: 'Configured' })
   ).not.toBeInTheDocument()
   expect(block).toHaveClass('border-destructive/50')
-  fireEvent.change(screen.getByLabelText('Proxy Address'), {
+  fireEvent.change(screen.getByRole('textbox', { name: 'Proxy Address' }), {
     target: { value: '' },
   })
   await waitFor(() =>
@@ -2134,7 +2138,12 @@ test('an operator without sensitive write permission can discover saved models a
   await user.click(thinking)
   expect(thinking).not.toBeChecked()
   await user.click(screen.getByRole('tab', { name: /Other Settings/ }))
-  expect(screen.getByLabelText('Proxy Address')).toBeDisabled()
+  expect(
+    within(screen.getByRole('group', { name: 'Proxy Address' })).getByRole(
+      'textbox',
+      { name: 'Proxy Address' }
+    )
+  ).toBeDisabled()
   await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
   fireEvent.change(screen.getByLabelText('Priority'), {
     target: { value: '8' },

@@ -76,6 +76,39 @@ const channelTestModes = [
 type ChannelTestMode = (typeof channelTestModes)[number]
 const MAX_CHANNEL_TEST_CONCURRENCY = 32
 
+const PROXY_ENTRY_PATTERN = /^(direct|https?:\/\/|socks5h?:\/\/)/i
+
+/** Returns the 1-based line numbers holding a malformed proxy entry. */
+function invalidProxyPoolLines(document: string): number[] {
+  const invalid: number[] = []
+  document.split('\n').forEach((line, index) => {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) return
+    let valid = PROXY_ENTRY_PATTERN.test(trimmed)
+    if (valid) {
+      try {
+        const parsed = new URL(
+          trimmed === 'direct' ? 'http://direct' : trimmed
+        )
+        valid = Boolean(parsed.hostname)
+      } catch {
+        valid = false
+      }
+    }
+    if (!valid) invalid.push(index + 1)
+  })
+  return invalid
+}
+
+/** Canonical form: trimmed entries, blank lines and comments dropped. */
+function normalizeProxyPoolDocument(document: string): string {
+  return document
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('#'))
+    .join('\n')
+}
+
 const createChannelHealthSchema = (
   t: (key: string, options?: Record<string, unknown>) => string
 ) =>
@@ -86,6 +119,7 @@ const createChannelHealthSchema = (
       AutomaticEnableChannelEnabled: z.boolean(),
       AutomaticDisableKeywords: z.string(),
       AutomaticDisableStatusCodes: z.string(),
+      'proxy_pool_setting.proxies': z.string(),
       monitor_setting: z.object({
         auto_test_channel_enabled: z.boolean(),
         auto_test_channel_minutes: z.coerce
@@ -116,6 +150,18 @@ const createChannelHealthSchema = (
           }),
         })
       }
+      const invalidLines = invalidProxyPoolLines(
+        values['proxy_pool_setting.proxies']
+      )
+      if (invalidLines.length > 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['proxy_pool_setting.proxies'],
+          message: t('Invalid proxy on line {{lines}}', {
+            lines: invalidLines.join(', '),
+          }),
+        })
+      }
     })
 
 type ChannelHealthSchema = ReturnType<typeof createChannelHealthSchema>
@@ -136,6 +182,7 @@ type NormalizedChannelHealthValues = {
   AutomaticEnableChannelEnabled: boolean
   AutomaticDisableKeywords: string
   AutomaticDisableStatusCodes: string
+  'proxy_pool_setting.proxies': string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
   'monitor_setting.channel_test_concurrency': number
@@ -159,6 +206,9 @@ const buildFormDefaults = (
     defaults.AutomaticDisableKeywords ?? ''
   ),
   AutomaticDisableStatusCodes: defaults.AutomaticDisableStatusCodes ?? '',
+  'proxy_pool_setting.proxies': normalizeLineEndings(
+    defaults['proxy_pool_setting.proxies'] ?? ''
+  ),
   monitor_setting: {
     auto_test_channel_enabled:
       defaults['monitor_setting.auto_test_channel_enabled'],
@@ -184,6 +234,9 @@ const normalizeDefaults = (
   AutomaticDisableStatusCodes: parseHttpStatusCodeRules(
     defaults.AutomaticDisableStatusCodes ?? ''
   ).normalized,
+  'proxy_pool_setting.proxies': normalizeProxyPoolDocument(
+    defaults['proxy_pool_setting.proxies'] ?? ''
+  ),
   'monitor_setting.auto_test_channel_enabled':
     defaults['monitor_setting.auto_test_channel_enabled'],
   'monitor_setting.auto_test_channel_minutes':
@@ -207,6 +260,9 @@ const normalizeFormValues = (
   AutomaticDisableStatusCodes: parseHttpStatusCodeRules(
     values.AutomaticDisableStatusCodes
   ).normalized,
+  'proxy_pool_setting.proxies': normalizeProxyPoolDocument(
+    values['proxy_pool_setting.proxies']
+  ),
   'monitor_setting.auto_test_channel_enabled':
     values.monitor_setting.auto_test_channel_enabled,
   'monitor_setting.auto_test_channel_minutes':
@@ -588,6 +644,40 @@ export function ChannelHealthSection({
                     <FormDescription>
                       {t(
                         'If an upstream error contains any of these keywords (case insensitive), the channel will be disabled automatically.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </SettingsFormGrid>
+          </div>
+
+          <Separator />
+
+          <div className='flex min-w-0 flex-col gap-4'>
+            <h4 className='text-sm font-medium'>{t('Global proxy pool')}</h4>
+            <SettingsFormGrid>
+              <FormField
+                control={form.control}
+                name='proxy_pool_setting.proxies'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Proxy entries')}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={6}
+                        className='font-mono text-xs'
+                        placeholder={t(
+                          'http://user:pass@ip:port\nsocks5://user:pass@ip:port\n# comment'
+                        )}
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'One proxy per line. Channels and individual keys bind to this pool with the pool binding (random rotation) or a pinned member. Blank lines and # comments are ignored.'
                       )}
                     </FormDescription>
                     <FormMessage />

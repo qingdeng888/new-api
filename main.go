@@ -105,12 +105,6 @@ func main() {
 		go model.SyncChannelCache(common.SyncFrequency)
 	}
 
-	// Proxy pools are needed for binding validation and request-time
-	// resolution regardless of the memory cache switch.
-	if err := model.InitProxyPoolCache(); err != nil {
-		common.SysLog(common.LogText("proxy pool cache init failed: %v", err))
-	}
-	go model.SyncProxyPoolCache(common.SyncFrequency)
 
 	wsmanager.StartSubscriber(context.Background())
 

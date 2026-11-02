@@ -27,20 +27,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useProxyPools } from '@/features/system-settings/proxy-pool/hooks/use-proxy-pools'
 
-import { buildProxyPoolBinding, parseProxyPoolBinding } from '../lib'
+import { parseProxyBinding } from '../lib'
 
 type ChannelProxyFieldProps = {
   value: string | undefined
   onChange: (value: string) => void
 } & Omit<React.ComponentProps<'div'>, 'onChange'>
 
-type ProxyFieldMode = 'manual' | 'pool'
+type FieldMode = 'inherit' | 'direct' | 'pool' | 'manual'
 
 /**
- * The channel-level proxy binding: a manual proxy address (including
- * "direct") or a proxy pool reference with a rotation mode.
+ * Channel-level proxy binding: inherit, dial directly, rotate through the
+ * global proxy pool, or a manual proxy address.
  */
 export function ChannelProxyField({
   value,
@@ -48,97 +47,85 @@ export function ChannelProxyField({
   ...rest
 }: ChannelProxyFieldProps) {
   const { t } = useTranslation()
-  const { data: pools = [] } = useProxyPools()
+  const parsed = parseProxyBinding(value)
+  const mode: FieldMode =
+    parsed.mode === 'pinned'
+      ? 'pool'
+      : parsed.mode === 'url'
+        ? 'manual'
+        : parsed.mode
   const invalid = rest['aria-invalid']
-  const parsed = parseProxyPoolBinding(value)
-  const mode: ProxyFieldMode = parsed ? 'pool' : 'manual'
-  const selectedPoolId = parsed?.poolId ?? pools[0]?.id ?? 0
 
   const handleModeChange = (next: string | null) => {
     if (next === null) return
-    if (next === 'manual') {
-      onChange('')
-      return
+    switch (next) {
+      case 'inherit':
+        onChange('')
+        break
+      case 'direct':
+        onChange('direct')
+        break
+      case 'pool':
+        onChange('pool')
+        break
+      default:
+        onChange('')
     }
-    if (pools.length === 0) {
-      onChange('')
-      return
-    }
-    onChange(buildProxyPoolBinding(selectedPoolId || pools[0].id, 'random'))
   }
 
   return (
-    <div {...rest} className='space-y-2'>
+    <div {...rest} className='space-y-2' role='group' aria-label={t('Proxy Address')}>
       <Select
         value={mode}
         onValueChange={handleModeChange}
         items={[
+          { value: 'inherit', label: t('Inherit (no channel proxy)') },
+          { value: 'direct', label: t('Direct connection (no proxy)') },
+          { value: 'pool', label: t('Global proxy pool (random)') },
           { value: 'manual', label: t('Manual proxy address') },
-          { value: 'pool', label: t('Proxy pool') },
         ]}
       >
-        <SelectTrigger className='w-full sm:w-56'>
+        <SelectTrigger className='w-full sm:w-64'>
           <SelectValue />
         </SelectTrigger>
         <SelectContent alignItemWithTrigger={false}>
           <SelectGroup>
+            <SelectItem value='inherit'>
+              {t('Inherit (no channel proxy)')}
+            </SelectItem>
+            <SelectItem value='direct'>
+              {t('Direct connection (no proxy)')}
+            </SelectItem>
+            <SelectItem value='pool'>
+              {t('Global proxy pool (random)')}
+            </SelectItem>
             <SelectItem value='manual'>{t('Manual proxy address')}</SelectItem>
-            <SelectItem value='pool'>{t('Proxy pool')}</SelectItem>
           </SelectGroup>
         </SelectContent>
       </Select>
-      {mode === 'manual' ? (
-        <>
-          <Input
-            aria-invalid={invalid}
-            aria-label={t('Proxy Address')}
-            placeholder={t('socks5://user:pass@host:port')}
-            spellCheck={false}
-            value={value ?? ''}
-            onChange={(event) => onChange(event.target.value)}
-          />
-          <p className='text-muted-foreground text-xs'>
-            {t(
-              'Network proxy for this channel (supports HTTP, HTTPS, SOCKS5, and SOCKS5H). Enter direct to dial without a proxy.'
-            )}
-          </p>
-        </>
-      ) : pools.length === 0 ? (
-        <p className='text-muted-foreground text-xs'>
-          {t(
-            'No proxy pools configured yet. Create one in System Settings → Proxy pools first.'
-          )}
-        </p>
-      ) : (
-        <div className='flex flex-wrap gap-2'>
-          <Select
-            value={String(selectedPoolId)}
-            onValueChange={(next) => {
-              if (next === null) return
-              onChange(
-                buildProxyPoolBinding(Number.parseInt(next, 10), 'random')
+
+      <Input
+        aria-invalid={invalid}
+        aria-label={t('Proxy Address')}
+        placeholder={t('socks5://user:pass@host:port')}
+        spellCheck={false}
+        disabled={mode !== 'manual'}
+        value={mode === 'manual' ? (value ?? '') : ''}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <p className='text-muted-foreground text-xs'>
+        {mode === 'manual'
+          ? t(
+              'Network proxy for this channel (supports HTTP, HTTPS, SOCKS5, and SOCKS5H)'
+            )
+          : mode === 'pool'
+            ? t(
+                'Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.'
               )
-            }}
-            items={pools.map((pool) => ({
-              value: String(pool.id),
-              label: pool.name,
-            }))}
-          >
-            <SelectTrigger className='w-full sm:w-56'>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent alignItemWithTrigger={false}>
-              <SelectGroup>
-                {pools.map((pool) => (
-                  <SelectItem key={pool.id} value={String(pool.id)}>
-                    {pool.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+            : mode === 'direct'
+              ? t('This channel dials upstream without any proxy.')
+              : t('This channel uses no channel-level proxy.')}
+      </p>
     </div>
   )
 }

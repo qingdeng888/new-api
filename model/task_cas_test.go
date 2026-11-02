@@ -55,7 +55,6 @@ func TestMain(m *testing.M) {
 		&SubscriptionOrder{},
 		&UserSubscription{},
 		&UserOAuthBinding{},
-		&ProxyPool{},
 		&PerfMetric{},
 		&SystemInstance{},
 		&SystemTask{},
