@@ -162,7 +162,7 @@ func ValidateProxyBinding(binding string) error {
 		return fmt.Errorf("invalid pool id in binding %q", b)
 	}
 	switch parts[1] {
-	case "random", "ordered":
+	case "random":
 		if len(parts) != 2 {
 			return fmt.Errorf("invalid pool binding %q", b)
 		}

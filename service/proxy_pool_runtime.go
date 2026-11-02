@@ -11,7 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 )
 
-// Proxy pool bindings ("pool:<id>:random|ordered|fixed:<n>") resolve to one
+// Proxy pool bindings ("pool:<id>:random|fixed:<n>") resolve to one
 // concrete proxy URL per request. Transport failures put a proxy endpoint
 // into an exponentially growing cool-down (15s doubling to 120s, mirroring
 // opencode2api's gateway); resolution skips cooled proxies so traffic
@@ -32,7 +32,6 @@ type proxyHealthState struct {
 var (
 	proxyHealthLock sync.Mutex
 	proxyHealth     = make(map[string]proxyHealthState)
-	poolCursors     = make(map[int]int) // pool id -> ordered-mode rotation cursor
 )
 
 func proxyCooldownSeconds(streak int) int64 {
@@ -117,19 +116,6 @@ func ResolvePoolProxyBinding(binding string) (string, bool) {
 			return members[healthyIdx[rand.Intn(len(healthyIdx))]], true
 		}
 		return members[earliestCoolingProxy(members, now)], true
-
-	case "ordered":
-		start := poolCursors[poolId] % len(members)
-		for i := range members {
-			idx := (start + i) % len(members)
-			if healthy(idx) {
-				poolCursors[poolId] = (idx + 1) % len(members)
-				return members[idx], true
-			}
-		}
-		idx := earliestCoolingProxy(members, now)
-		poolCursors[poolId] = (idx + 1) % len(members)
-		return members[idx], true
 
 	case "fixed":
 		if len(parts) != 3 {

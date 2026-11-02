@@ -56,39 +56,41 @@ func joinProxyLines(proxies []string) string {
 	return lines
 }
 
-func TestResolvePoolProxyBindingOrderedCyclesAndTransfers(t *testing.T) {
+func TestResolvePoolProxyBindingRandomAvoidsCoolingMembers(t *testing.T) {
 	setupProxyPoolTestDB(t)
 	members := []string{
 		"socks5://10.0.0.1:1080",
 		"socks5://10.0.0.2:1080",
 		"socks5://10.0.0.3:1080",
 	}
-	pool := createTestProxyPool(t, "ordered-pool", members)
-	binding := "pool:" + strconv.Itoa(pool.Id) + ":ordered"
+	pool := createTestProxyPool(t, "random-pool-transfer", members)
+	binding := "pool:" + strconv.Itoa(pool.Id) + ":random"
 
-	// A full cycle covers every member exactly once.
-	firstRound := make([]string, 0, len(members))
-	for range members {
+	// Resolution always returns one of the pool members.
+	for range 8 {
 		resolved, ok := ResolvePoolProxyBinding(binding)
 		require.True(t, ok)
-		firstRound = append(firstRound, resolved)
+		assert.Contains(t, members, resolved)
 	}
-	assert.ElementsMatch(t, members, firstRound)
 
-	// Cooling the next scheduled member transfers traffic to another one.
-	cooled := firstRound[0]
-	MarkProxyTransportResult(cooled, false)
-	for range 2 {
+	// Cooling two members leaves only the third available.
+	MarkProxyTransportResult(members[0], false)
+	MarkProxyTransportResult(members[1], false)
+	for range 5 {
 		resolved, ok := ResolvePoolProxyBinding(binding)
 		require.True(t, ok)
-		assert.NotEqual(t, cooled, resolved)
+		assert.Equal(t, members[2], resolved)
 	}
 
-	// Success clears the cool-down and the member rejoins the rotation.
-	MarkProxyTransportResult(cooled, true)
-	resolved, ok := ResolvePoolProxyBinding(binding)
-	require.True(t, ok)
-	assert.Contains(t, members, resolved)
+	// A recovered member rejoins the rotation.
+	MarkProxyTransportResult(members[0], true)
+	seen := map[string]bool{}
+	for range 40 {
+		resolved, ok := ResolvePoolProxyBinding(binding)
+		require.True(t, ok)
+		seen[resolved] = true
+	}
+	assert.True(t, seen[members[0]], "recovered member should serve traffic again")
 }
 
 func TestResolvePoolProxyBindingFixedTransfersAndRecovers(t *testing.T) {

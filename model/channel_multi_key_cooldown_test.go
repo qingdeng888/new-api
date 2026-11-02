@@ -132,7 +132,7 @@ func TestValidateProxyBinding(t *testing.T) {
 
 	// Pool references must point at an existing pool with a known mode.
 	require.NoError(t, ValidateProxyBinding("pool:"+strconv.Itoa(pool.Id)+":random"))
-	require.NoError(t, ValidateProxyBinding("pool:"+strconv.Itoa(pool.Id)+":ordered"))
+	require.Error(t, ValidateProxyBinding("pool:"+strconv.Itoa(pool.Id)+":ordered")) // ordered mode was dropped
 	require.NoError(t, ValidateProxyBinding("pool:"+strconv.Itoa(pool.Id)+":fixed:1"))
 	require.Error(t, ValidateProxyBinding("pool:"+strconv.Itoa(pool.Id)+":weird"))
 	require.Error(t, ValidateProxyBinding("pool:999:random"))

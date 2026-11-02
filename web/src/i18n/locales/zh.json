@@ -7406,7 +7406,6 @@
     "Manual proxy address": "手动代理地址",
     "Proxy pool": "代理池",
     "Random rotation": "随机轮询",
-    "Ordered rotation": "有序轮询",
     "Pinned pool proxy": "池内固定代理",
     "Fixed member index": "固定成员序号",
     "Unknown pool": "未知代理池",

@@ -262,7 +262,6 @@ export function MultiKeyManageDialog({
     const parsed = parseProxyPoolBinding(proxyEditor?.value)
     if (!parsed) return 'manual'
     if (parsed.mode === 'random') return 'pool-random'
-    if (parsed.mode === 'ordered') return 'pool-ordered'
     return 'pool-fixed'
   })()
   const proxyEditorInvalid =
@@ -293,12 +292,7 @@ export function MultiKeyManageDialog({
       )
       return
     }
-    setEditorBinding(
-      buildProxyPoolBinding(
-        poolId,
-        mode === 'pool-ordered' ? 'ordered' : 'random'
-      )
-    )
+    setEditorBinding(buildProxyPoolBinding(poolId, 'random'))
   }
 
   const describeProxyBinding = (value: string | undefined) => {
@@ -309,11 +303,7 @@ export function MultiKeyManageDialog({
         proxyPools.find((pool) => pool.id === parsed.poolId)?.name ??
         t('Unknown pool')
       const modeLabel =
-        parsed.mode === 'random'
-          ? t('Random rotation')
-          : parsed.mode === 'ordered'
-            ? t('Ordered rotation')
-            : t('Pinned pool proxy')
+        parsed.mode === 'random' ? t('Random rotation') : t('Pinned pool proxy')
       return poolName + ' · ' + modeLabel
     }
     return value
@@ -829,7 +819,6 @@ export function MultiKeyManageDialog({
           items={[
             { value: 'manual', label: t('Manual proxy address') },
             { value: 'pool-random', label: t('Random rotation') },
-            { value: 'pool-ordered', label: t('Ordered rotation') },
             { value: 'pool-fixed', label: t('Pinned pool proxy') },
           ]}
         >
@@ -843,9 +832,6 @@ export function MultiKeyManageDialog({
               </SelectItem>
               <SelectItem value='pool-random'>
                 {t('Random rotation')}
-              </SelectItem>
-              <SelectItem value='pool-ordered'>
-                {t('Ordered rotation')}
               </SelectItem>
               <SelectItem value='pool-fixed'>
                 {t('Pinned pool proxy')}
@@ -901,11 +887,7 @@ export function MultiKeyManageDialog({
                   setEditorBinding(
                     buildProxyPoolBinding(
                       Number.parseInt(next, 10),
-                      editorMode === 'pool-ordered'
-                        ? 'ordered'
-                        : editorMode === 'pool-fixed'
-                          ? 'fixed'
-                          : 'random',
+                      editorMode === 'pool-fixed' ? 'fixed' : 'random',
                       parseProxyPoolBinding(proxyEditor?.value)?.fixedIndex
                     )
                   )

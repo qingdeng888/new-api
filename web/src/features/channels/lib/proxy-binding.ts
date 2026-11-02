@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 /** Modes a proxy pool binding can use. */
-export type ProxyPoolBindingMode = 'random' | 'ordered' | 'fixed'
+export type ProxyPoolBindingMode = 'random' | 'fixed'
 
 export interface ParsedProxyPoolBinding {
   poolId: number
@@ -27,7 +27,7 @@ export interface ParsedProxyPoolBinding {
 }
 
 /**
- * Parses a `pool:<id>:(random|ordered|fixed:<n>)` binding; returns null for
+ * Parses a `pool:<id>:(random|fixed:<n>)` binding; returns null for
  * anything else (plain URLs, direct, empty).
  */
 export function parseProxyPoolBinding(
@@ -42,9 +42,8 @@ export function parseProxyPoolBinding(
   if (!Number.isInteger(poolId) || poolId <= 0) return null
   switch (parts[1]) {
     case 'random':
-    case 'ordered':
       if (parts.length !== 2) return null
-      return { poolId, mode: parts[1] }
+      return { poolId, mode: 'random' }
     case 'fixed': {
       if (parts.length !== 3) return null
       const fixedIndex = Number.parseInt(parts[2], 10)

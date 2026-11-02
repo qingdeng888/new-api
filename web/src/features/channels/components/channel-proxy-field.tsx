@@ -53,7 +53,6 @@ export function ChannelProxyField({
   const parsed = parseProxyPoolBinding(value)
   const mode: ProxyFieldMode = parsed ? 'pool' : 'manual'
   const selectedPoolId = parsed?.poolId ?? pools[0]?.id ?? 0
-  const selectedMode = parsed?.mode === 'ordered' ? 'ordered' : 'random'
 
   const handleModeChange = (next: string | null) => {
     if (next === null) return
@@ -117,7 +116,7 @@ export function ChannelProxyField({
             onValueChange={(next) => {
               if (next === null) return
               onChange(
-                buildProxyPoolBinding(Number.parseInt(next, 10), selectedMode)
+                buildProxyPoolBinding(Number.parseInt(next, 10), 'random')
               )
             }}
             items={pools.map((pool) => ({
@@ -135,32 +134,6 @@ export function ChannelProxyField({
                     {pool.name}
                   </SelectItem>
                 ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          <Select
-            value={selectedMode}
-            onValueChange={(next) => {
-              if (next === null) return
-              onChange(
-                buildProxyPoolBinding(
-                  selectedPoolId,
-                  next === 'ordered' ? 'ordered' : 'random'
-                )
-              )
-            }}
-            items={[
-              { value: 'random', label: t('Random rotation') },
-              { value: 'ordered', label: t('Ordered rotation') },
-            ]}
-          >
-            <SelectTrigger className='w-full sm:w-40'>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent alignItemWithTrigger={false}>
-              <SelectGroup>
-                <SelectItem value='random'>{t('Random rotation')}</SelectItem>
-                <SelectItem value='ordered'>{t('Ordered rotation')}</SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>
