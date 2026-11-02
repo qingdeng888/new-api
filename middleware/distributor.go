@@ -700,15 +700,18 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	}
 
 	// Resolve the effective proxy binding: a multi-key entry's own proxy
-	// wins over the channel-level one, and "pool:" references resolve to one
-	// concrete member per request so failing proxies transfer the traffic.
+	// wins over the channel-level one (and applies to single-key channels
+	// too, where selection always yields index 0). "pool:" references
+	// resolve to one concrete member per request so failing proxies
+	// transfer the traffic.
 	settings := channel.GetSetting()
 	proxyBinding := settings.Proxy
-	// A per-key proxy applies to single-key channels as well: selection
-	// always yields index 0 for them.
 	if keyProxy := channel.ChannelInfo.MultiKeyProxies[index]; keyProxy != "" {
 		proxyBinding = keyProxy
 	}
+	// The raw binding rides along for WS reconnect checks, which compare
+	// admin-configured values instead of per-request resolved members.
+	common.SetContextKey(c, constant.ContextKeyChannelProxyBinding, proxyBinding)
 	switch {
 	case proxyBinding == "":
 		// Nothing bound; the channel setting already carries no proxy.
@@ -718,6 +721,8 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 		if resolved, handled := operation_setting.PickProxyPoolMember(proxyBinding); handled {
 			settings.Proxy = resolved
 		} else {
+			// Pool missing/empty: keep the raw binding so the request fails
+			// visibly instead of silently dialing direct.
 			settings.Proxy = proxyBinding
 		}
 	}

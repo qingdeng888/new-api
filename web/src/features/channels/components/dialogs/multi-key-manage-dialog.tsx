@@ -98,6 +98,7 @@ export function MultiKeyManageDialog({
   const { data: poolEntries = [] } = useProxyPool({
     enabled: open && !!currentRow,
   })
+  const isMultiKeyChannel = currentRow?.channel_info?.is_multi_key ?? false
 
   const canEditSensitive = hasPermission(
     currentUser,
@@ -613,18 +614,19 @@ export function MultiKeyManageDialog({
                 </Button>
               )}
 
-              {manualDisabledCount + autoDisabledCount > 0 && (
-                <Button
-                  variant='default'
-                  size='sm'
-                  onClick={() => setConfirmAction({ type: 'enable-all' })}
-                >
-                  <Power className='mr-2 h-4 w-4' />
-                  {t('Enable All')}
-                </Button>
-              )}
+              {isMultiKeyChannel &&
+                manualDisabledCount + autoDisabledCount > 0 && (
+                  <Button
+                    variant='default'
+                    size='sm'
+                    onClick={() => setConfirmAction({ type: 'enable-all' })}
+                  >
+                    <Power className='mr-2 h-4 w-4' />
+                    {t('Enable All')}
+                  </Button>
+                )}
 
-              {enabledCount > 0 && (
+              {isMultiKeyChannel && enabledCount > 0 && (
                 <Button
                   variant='destructive'
                   size='sm'
@@ -635,7 +637,7 @@ export function MultiKeyManageDialog({
                 </Button>
               )}
 
-              {autoDisabledCount > 0 && (
+              {isMultiKeyChannel && autoDisabledCount > 0 && (
                 <Button
                   variant='destructive'
                   size='sm'
@@ -761,6 +763,7 @@ export function MultiKeyManageDialog({
                         keyIndex={key.index}
                         status={key.status}
                         canDelete={canEditSensitive}
+                        isMultiKey={isMultiKeyChannel}
                         isTesting={
                           Boolean(batchTest) ||
                           keyTests[key.index]?.status === 'testing'

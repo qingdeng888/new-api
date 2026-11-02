@@ -27,6 +27,9 @@ type MultiKeyTableRowActionsProps = {
   keyIndex: number
   status: number
   canDelete: boolean
+  /** False for single-key channels: disabling/enabling/deleting the only
+   * key is either a no-op or would leave the channel without keys. */
+  isMultiKey: boolean
   isTesting?: boolean
   onTest?: () => void
   onSetProxy?: () => void
@@ -37,6 +40,7 @@ export function MultiKeyTableRowActions({
   keyIndex,
   status,
   canDelete,
+  isMultiKey,
   isTesting = false,
   onTest,
   onSetProxy,
@@ -74,37 +78,40 @@ export function MultiKeyTableRowActions({
           {t('Test')}
         </Button>
       )}
-      {isEnabled ? (
+      {isMultiKey &&
+        (isEnabled ? (
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => onAction({ type: 'disable', keyIndex })}
+          >
+            {t('Disable')}
+          </Button>
+        ) : (
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => onAction({ type: 'enable', keyIndex })}
+          >
+            {t('Enable')}
+          </Button>
+        ))}
+      {isMultiKey && (
         <Button
-          variant='outline'
+          variant='destructive'
           size='sm'
-          onClick={() => onAction({ type: 'disable', keyIndex })}
+          onClick={() => {
+            if (!canDelete) return
+            onAction({ type: 'delete', keyIndex })
+          }}
+          disabled={!canDelete}
+          title={
+            canDelete ? undefined : t('No permission to perform this action')
+          }
         >
-          {t('Disable')}
-        </Button>
-      ) : (
-        <Button
-          variant='outline'
-          size='sm'
-          onClick={() => onAction({ type: 'enable', keyIndex })}
-        >
-          {t('Enable')}
+          {t('Delete')}
         </Button>
       )}
-      <Button
-        variant='destructive'
-        size='sm'
-        onClick={() => {
-          if (!canDelete) return
-          onAction({ type: 'delete', keyIndex })
-        }}
-        disabled={!canDelete}
-        title={
-          canDelete ? undefined : t('No permission to perform this action')
-        }
-      >
-        {t('Delete')}
-      </Button>
     </div>
   )
 }

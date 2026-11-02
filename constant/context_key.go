@@ -38,6 +38,10 @@ const (
 	ContextKeyChannelStatusCodeMapping ContextKey = "status_code_mapping"
 	ContextKeyChannelIsMultiKey        ContextKey = "channel_is_multi_key"
 	ContextKeyChannelMultiKeyIndex     ContextKey = "channel_multi_key_index"
+	// ContextKeyChannelProxyBinding carries the unresolved proxy binding
+	// (pool references included) so WS reconnect checks compare
+	// admin-configured values instead of per-request resolved members.
+	ContextKeyChannelProxyBinding ContextKey = "channel_proxy_binding"
 	// ContextKeyChannelPinnedMultiKeyIndex forces a multi-key channel to use
 	// one specific key regardless of its status. Only the channel test path
 	// sets it so a single key (including a disabled one) can be probed.

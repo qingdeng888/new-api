@@ -324,11 +324,7 @@ const (
 // so background paths (task polling, MJ fetch) can share the distributor's
 // resolution rules.
 func (channel *Channel) GetResolvedProxy() string {
-	proxy := channel.GetSetting().Proxy
-	if resolved, ok := operation_setting.PickProxyPoolMember(proxy); ok {
-		return resolved
-	}
-	return proxy
+	return operation_setting.ResolveProxyBinding(channel.GetSetting().Proxy)
 }
 
 // MultiKeyProxyDirect stored as a key's proxy marks the key as dialing
