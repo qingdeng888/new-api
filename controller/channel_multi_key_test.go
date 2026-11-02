@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -259,4 +260,72 @@ func TestMultiKeySetKeyProxyRoundTrip(t *testing.T) {
 	loaded, err := model.GetChannelById(channel.Id, true)
 	require.NoError(t, err)
 	assert.NotContains(t, loaded.ChannelInfo.MultiKeyProxies, 1)
+}
+
+func TestSingleKeyChannelManagesKeyProxy(t *testing.T) {
+	root := setupMultiKeyManageTestDB(t)
+	previous := operation_setting.GetProxyPoolSetting().Proxies
+	t.Cleanup(func() { operation_setting.GetProxyPoolSetting().Proxies = previous })
+	operation_setting.GetProxyPoolSetting().Proxies =
+		`[{"url":"socks5://10.7.0.1:1080","note":"pool-a","enabled":true}]`
+
+	channel := &model.Channel{
+		Name:   t.Name(),
+		Type:   1,
+		Key:    "only-key",
+		Status: common.ChannelStatusEnabled,
+		Models: "test-model",
+		Group:  "default",
+	}
+	require.NoError(t, channel.Insert())
+	t.Cleanup(func() {
+		require.NoError(t, channel.Delete())
+		model.InitChannelCache()
+	})
+
+	callManage := func(request MultiKeyManageRequest) map[string]any {
+		payload, err := common.Marshal(request)
+		require.NoError(t, err)
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Set("id", root.Id)
+		c.Set("role", common.RoleRootUser)
+		c.Request = httptest.NewRequest(http.MethodPost, "/api/channel/multi_key", bytes.NewReader(payload))
+		c.Request.Header.Set("Content-Type", "application/json")
+		ManageMultiKeys(c)
+		var result map[string]any
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &result))
+		return result
+	}
+
+	// A single-key channel is accepted and reports its one key.
+	result := callManage(MultiKeyManageRequest{ChannelId: channel.Id, Action: "get_key_status"})
+	require.Equal(t, true, result["success"], result["message"])
+	keys := result["data"].(map[string]any)["keys"].([]any)
+	require.Len(t, keys, 1)
+
+	// Pinning a pool entry by URL is stored for index 0.
+	pinned := operation_setting.ProxyPoolBindingPinnedPrefix + "socks5://10.7.0.1:1080"
+	result = callManage(MultiKeyManageRequest{
+		ChannelId: channel.Id, Action: "set_key_proxy",
+		KeyIndex: common.GetPointer(0), Proxy: pinned,
+	})
+	assert.Equal(t, true, result["success"], result["message"])
+
+	loaded, err := model.GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, pinned, loaded.ChannelInfo.MultiKeyProxies[0])
+
+	// The panel reports the binding back.
+	result = callManage(MultiKeyManageRequest{ChannelId: channel.Id, Action: "get_key_status"})
+	keys = result["data"].(map[string]any)["keys"].([]any)
+	assert.Equal(t, pinned, keys[0].(map[string]any)["proxy"])
+
+	// A binding to an entry missing from the pool is rejected.
+	result = callManage(MultiKeyManageRequest{
+		ChannelId: channel.Id, Action: "set_key_proxy",
+		KeyIndex: common.GetPointer(0),
+		Proxy:    operation_setting.ProxyPoolBindingPinnedPrefix + "socks5://10.7.9.9:1080",
+	})
+	assert.Equal(t, false, result["success"])
 }

@@ -27,19 +27,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useProxyPool } from '@/features/system-settings/proxy-manage/hooks/use-proxy-pool'
 
-import { parseProxyBinding } from '../lib'
+import {
+  buildPinnedPoolBinding,
+  buildRandomPoolBinding,
+  parseProxyBinding,
+  proxyEntryLabel,
+} from '../lib'
 
 type ChannelProxyFieldProps = {
   value: string | undefined
   onChange: (value: string) => void
 } & Omit<React.ComponentProps<'div'>, 'onChange'>
 
-type FieldMode = 'inherit' | 'direct' | 'pool' | 'manual'
+type FieldMode = 'inherit' | 'direct' | 'pool' | 'pinned' | 'manual'
 
 /**
  * Channel-level proxy binding: inherit, dial directly, rotate through the
- * global proxy pool, or a manual proxy address.
+ * global proxy pool, pin one pool entry, or a manual proxy address.
  */
 export function ChannelProxyField({
   value,
@@ -48,13 +54,11 @@ export function ChannelProxyField({
 }: ChannelProxyFieldProps) {
   const { t } = useTranslation()
   const parsed = parseProxyBinding(value)
+  const { data: entries = [] } = useProxyPool()
   const mode: FieldMode =
-    parsed.mode === 'pinned'
-      ? 'pool'
-      : parsed.mode === 'url'
-        ? 'manual'
-        : parsed.mode
+    parsed.mode === 'url' ? 'manual' : (parsed.mode as FieldMode)
   const invalid = rest['aria-invalid']
+  const pinnedUrl = parsed.pinnedUrl ?? entries[0]?.url ?? ''
 
   const handleModeChange = (next: string | null) => {
     if (next === null) return
@@ -66,11 +70,38 @@ export function ChannelProxyField({
         onChange('direct')
         break
       case 'pool':
-        onChange('pool')
+        onChange(buildRandomPoolBinding())
+        break
+      case 'pinned':
+        if (entries[0]) onChange(buildPinnedPoolBinding(entries[0].url))
         break
       default:
         onChange('')
     }
+  }
+
+  let hint: string
+  switch (mode) {
+    case 'manual':
+      hint = t(
+        'Network proxy for this channel (supports HTTP, HTTPS, SOCKS5, and SOCKS5H)'
+      )
+      break
+    case 'pinned':
+      hint = t(
+        'Pin one proxy from the pool. Traffic moves to another healthy entry while it is failing.'
+      )
+      break
+    case 'pool':
+      hint = t(
+        'Requests rotate randomly across the enabled proxies in the pool. Failing entries cool down and traffic transfers automatically.'
+      )
+      break
+    case 'direct':
+      hint = t('This channel dials upstream without any proxy.')
+      break
+    default:
+      hint = t('This channel uses no channel-level proxy.')
   }
 
   return (
@@ -82,6 +113,7 @@ export function ChannelProxyField({
           { value: 'inherit', label: t('Inherit (no channel proxy)') },
           { value: 'direct', label: t('Direct connection (no proxy)') },
           { value: 'pool', label: t('Global proxy pool (random)') },
+          { value: 'pinned', label: t('Specific pool proxy') },
           { value: 'manual', label: t('Manual proxy address') },
         ]}
       >
@@ -99,10 +131,39 @@ export function ChannelProxyField({
             <SelectItem value='pool'>
               {t('Global proxy pool (random)')}
             </SelectItem>
+            <SelectItem value='pinned'>{t('Specific pool proxy')}</SelectItem>
             <SelectItem value='manual'>{t('Manual proxy address')}</SelectItem>
           </SelectGroup>
         </SelectContent>
       </Select>
+
+      {mode === 'pinned' && (
+        <Select
+          value={pinnedUrl}
+          onValueChange={(next) => {
+            if (next === null) return
+            onChange(buildPinnedPoolBinding(next))
+          }}
+          items={entries.map((entry) => ({
+            value: entry.url,
+            label: proxyEntryLabel(entry),
+          }))}
+        >
+          <SelectTrigger className='w-full' aria-label={t('Pool proxy')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent alignItemWithTrigger={false}>
+            <SelectGroup>
+              {entries.map((entry) => (
+                <SelectItem key={entry.url} value={entry.url}>
+                  {proxyEntryLabel(entry)}
+                  {!entry.enabled && ` (${t('Disabled')})`}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      )}
 
       <Input
         aria-invalid={invalid}
@@ -113,19 +174,7 @@ export function ChannelProxyField({
         value={mode === 'manual' ? (value ?? '') : ''}
         onChange={(event) => onChange(event.target.value)}
       />
-      <p className='text-muted-foreground text-xs'>
-        {mode === 'manual'
-          ? t(
-              'Network proxy for this channel (supports HTTP, HTTPS, SOCKS5, and SOCKS5H)'
-            )
-          : mode === 'pool'
-            ? t(
-                'Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.'
-              )
-            : mode === 'direct'
-              ? t('This channel dials upstream without any proxy.')
-              : t('This channel uses no channel-level proxy.')}
-      </p>
+      <p className='text-muted-foreground text-xs'>{hint}</p>
     </div>
   )
 }

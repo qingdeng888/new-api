@@ -7399,6 +7399,22 @@
     "Pool member number": "池成員序號",
     "1-based position in the global proxy pool": "全域代理池中的位置（從 1 開始）",
     "Uses the proxies from System Settings → Request policies → Channel health. Failing proxies cool down and traffic transfers automatically.": "使用「系統設定 → 請求策略 → 渠道健康」中設定的代理。失敗的代理會進入冷卻並自動轉移流量。",
-    "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.": "請求會在「系統設定 → 請求策略 → 渠道健康」設定的代理間隨機輪詢。失敗的代理進入冷卻並自動轉移流量。"
+    "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.": "請求會在「系統設定 → 請求策略 → 渠道健康」設定的代理間隨機輪詢。失敗的代理進入冷卻並自動轉移流量。",
+    "Proxy management": "代理管理",
+    "Outbound proxy list for every channel and key. Keys bind to a specific entry or rotate randomly across all enabled entries; failing proxies cool down and transfer automatically.": "渠道和金鑰的出站代理清單。金鑰可綁定某個具體代理，或在所有啟用的代理間隨機輪詢；失敗的代理會進入冷卻並自動轉移流量。",
+    "Add proxy": "新增代理",
+    "Edit proxy": "編輯代理",
+    "Delete proxy": "刪除代理",
+    "Delete this proxy? Keys pinned to it fall back to random rotation.": "確定刪除該代理嗎？固定綁定它的金鑰會回退為隨機輪詢。",
+    "Bulk add": "批量新增",
+    "One proxy per line. Blank lines and # comments are ignored; duplicates are skipped.": "每行一條代理，空行和 # 註釋會被忽略，重複項會跳過。",
+    "Optional, e.g. US datacenter": "可選，例如：美國機房",
+    "No proxies configured yet.": "尚未配置任何代理。",
+    "Specific pool proxy": "指定池內代理",
+    "Pool proxy": "池內代理",
+    "Pin one proxy from the pool. Traffic moves to another healthy entry while it is failing.": "從池中固定一個代理；它故障期間流量會轉移到其他可用代理。",
+    "Removed proxy: {{url}}": "代理已移除：{{url}}",
+    "Key Management": "金鑰管理",
+    "Failed to save proxy pool": "儲存代理池失敗"
   }
 }

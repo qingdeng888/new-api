@@ -7399,6 +7399,22 @@
     "Pool member number": "Numéro du membre du pool",
     "1-based position in the global proxy pool": "Position dans le pool global (à partir de 1)",
     "Uses the proxies from System Settings → Request policies → Channel health. Failing proxies cool down and traffic transfers automatically.": "Utilise les proxies de Paramètres système → Politiques de requête → Santé des canaux. Les proxies défaillants refroidissent et le trafic bascule automatiquement.",
-    "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.": "Les requêtes alternent aléatoirement entre les proxies configurés dans Paramètres système → Politiques de requête → Santé des canaux. Les entrées défaillantes refroidissent et le trafic bascule."
+    "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.": "Les requêtes alternent aléatoirement entre les proxies configurés dans Paramètres système → Politiques de requête → Santé des canaux. Les entrées défaillantes refroidissent et le trafic bascule.",
+    "Proxy management": "Gestion des proxies",
+    "Outbound proxy list for every channel and key. Keys bind to a specific entry or rotate randomly across all enabled entries; failing proxies cool down and transfer automatically.": "Liste des proxies sortants pour chaque canal et clé. Les clés se lient à une entrée précise ou alternent aléatoirement parmi toutes les entrées actives ; les proxies défaillants refroidissent et le trafic bascule automatiquement.",
+    "Add proxy": "Ajouter un proxy",
+    "Edit proxy": "Modifier le proxy",
+    "Delete proxy": "Supprimer le proxy",
+    "Delete this proxy? Keys pinned to it fall back to random rotation.": "Supprimer ce proxy ? Les clés épinglées dessus reviendront à la rotation aléatoire.",
+    "Bulk add": "Ajout groupé",
+    "One proxy per line. Blank lines and # comments are ignored; duplicates are skipped.": "Un proxy par ligne. Les lignes vides et les commentaires # sont ignorés ; les doublons sont ignorés.",
+    "Optional, e.g. US datacenter": "Facultatif, par ex. datacenter US",
+    "No proxies configured yet.": "Aucun proxy configuré.",
+    "Specific pool proxy": "Proxy précis du pool",
+    "Pool proxy": "Proxy du pool",
+    "Pin one proxy from the pool. Traffic moves to another healthy entry while it is failing.": "Épingle un proxy du pool. Le trafic bascule vers une autre entrée saine pendant une panne.",
+    "Removed proxy: {{url}}": "Proxy supprimé : {{url}}",
+    "Key Management": "Gestion des clés",
+    "Failed to save proxy pool": "Échec de l’enregistrement du pool de proxy"
   }
 }

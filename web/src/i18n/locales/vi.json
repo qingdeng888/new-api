@@ -7399,6 +7399,22 @@
     "Pool member number": "Số thứ tự thành viên pool",
     "1-based position in the global proxy pool": "Vị trí trong pool toàn cục (bắt đầu từ 1)",
     "Uses the proxies from System Settings → Request policies → Channel health. Failing proxies cool down and traffic transfers automatically.": "Dùng proxy từ Cài đặt hệ thống → Chính sách yêu cầu → Sức khỏe kênh. Proxy lỗi sẽ tạm nghỉ và lưu lượng tự động chuyển sang proxy khác.",
-    "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.": "Yêu cầu xoay vòng ngẫu nhiên giữa các proxy trong Cài đặt hệ thống → Chính sách yêu cầu → Sức khỏe kênh. Proxy lỗi tạm nghỉ và lưu lượng tự chuyển."
+    "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.": "Yêu cầu xoay vòng ngẫu nhiên giữa các proxy trong Cài đặt hệ thống → Chính sách yêu cầu → Sức khỏe kênh. Proxy lỗi tạm nghỉ và lưu lượng tự chuyển.",
+    "Proxy management": "Quản lý proxy",
+    "Outbound proxy list for every channel and key. Keys bind to a specific entry or rotate randomly across all enabled entries; failing proxies cool down and transfer automatically.": "Danh sách proxy ra cho mọi kênh và khóa. Khóa có thể gắn với một proxy cụ thể hoặc xoay vòng ngẫu nhiên qua các proxy đang bật; proxy lỗi tạm nghỉ và lưu lượng tự chuyển.",
+    "Add proxy": "Thêm proxy",
+    "Edit proxy": "Sửa proxy",
+    "Delete proxy": "Xóa proxy",
+    "Delete this proxy? Keys pinned to it fall back to random rotation.": "Xóa proxy này? Các khóa gắn cố định sẽ quay về xoay vòng ngẫu nhiên.",
+    "Bulk add": "Thêm hàng loạt",
+    "One proxy per line. Blank lines and # comments are ignored; duplicates are skipped.": "Mỗi dòng một proxy. Dòng trống và chú thích # bị bỏ qua, mục trùng sẽ bị bỏ.",
+    "Optional, e.g. US datacenter": "Tùy chọn, ví dụ: datacenter Mỹ",
+    "No proxies configured yet.": "Chưa cấu hình proxy nào.",
+    "Specific pool proxy": "Proxy cụ thể trong pool",
+    "Pool proxy": "Proxy trong pool",
+    "Pin one proxy from the pool. Traffic moves to another healthy entry while it is failing.": "Gắn cố định một proxy trong pool. Khi lỗi, lưu lượng chuyển sang proxy khác còn hoạt động.",
+    "Removed proxy: {{url}}": "Proxy đã bị xóa: {{url}}",
+    "Key Management": "Quản lý khóa",
+    "Failed to save proxy pool": "Lưu proxy pool thất bại"
   }
 }

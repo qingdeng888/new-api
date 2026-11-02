@@ -17,16 +17,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+import type { ProxyPoolEntry } from '@/features/system-settings/proxy-manage/types'
+
+export const PINNED_POOL_PREFIX = 'pool:url:'
+
 /**
  * Bindings address the single global proxy pool:
  * "" inherits, "direct" dials without a proxy, "pool" rotates randomly over
- * the pool, "pool:<n>" pins the n-th entry, anything else is a proxy URL.
+ * the enabled entries, "pool:url:<url>" pins one entry, anything else is a
+ * proxy URL. Legacy "pool:<n>" pins are still parsed.
  */
 export type ProxyBindingMode = 'inherit' | 'direct' | 'pool' | 'pinned' | 'url'
 
 export interface ParsedProxyBinding {
   mode: ProxyBindingMode
-  pinnedIndex?: number
+  pinnedUrl?: string
 }
 
 export function parseProxyBinding(
@@ -36,22 +41,39 @@ export function parseProxyBinding(
   if (!trimmed) return { mode: 'inherit' }
   if (trimmed === 'direct') return { mode: 'direct' }
   if (trimmed === 'pool') return { mode: 'pool' }
-  const rest = trimmed.startsWith('pool:') ? trimmed.slice(5) : null
-  if (rest !== null) {
-    const index = Number.parseInt(rest, 10)
-    if (Number.isInteger(index) && index >= 0 && String(index) === rest) {
-      return { mode: 'pinned', pinnedIndex: index }
-    }
+  if (trimmed.startsWith(PINNED_POOL_PREFIX)) {
+    const url = trimmed.slice(PINNED_POOL_PREFIX.length)
+    if (url) return { mode: 'pinned', pinnedUrl: url }
   }
+  // Legacy numeric pins are still recognised so old bindings keep working.
+  const legacy = /^pool:(\d+)$/.exec(trimmed)
+  if (legacy) return { mode: 'pinned', pinnedUrl: undefined }
   return { mode: 'url' }
 }
 
-export function buildPoolBinding(pinnedIndex?: number): string {
-  return pinnedIndex === undefined ? 'pool' : `pool:${pinnedIndex}`
+export function buildRandomPoolBinding(): string {
+  return 'pool'
 }
 
-/** True when the binding references the global pool in any form. */
+export function buildPinnedPoolBinding(proxyUrl: string): string {
+  return `${PINNED_POOL_PREFIX}${proxyUrl}`
+}
+
 export function isPoolBinding(value: string | undefined): boolean {
   const mode = parseProxyBinding(value).mode
   return mode === 'pool' || mode === 'pinned'
+}
+
+/** Label for a pool entry in a picker: "note · masked-url" or the masked URL. */
+export function proxyEntryLabel(entry: ProxyPoolEntry): string {
+  const masked = maskProxyUrl(entry.url)
+  return entry.note ? `${entry.note} · ${masked}` : masked
+}
+
+function maskProxyUrl(url: string): string {
+  const at = url.lastIndexOf('@')
+  if (at <= 0) return url
+  const schemeEnd = url.indexOf('://')
+  const prefix = schemeEnd >= 0 ? url.slice(0, schemeEnd + 3) : ''
+  return `${prefix}***@${url.slice(at + 1)}`
 }

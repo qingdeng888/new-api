@@ -173,11 +173,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	// Pinning an index lets a manual test probe one specific key — including
 	// a disabled one — without touching the polling cursor.
 	if keyIndex >= 0 {
-		if !channel.ChannelInfo.IsMultiKey {
-			return testResult{
-				localErr: errors.New("channel is not in multi-key mode"),
-			}
-		}
+
 		if keyIndex >= len(channel.GetKeys()) {
 			return testResult{
 				localErr: fmt.Errorf("key index %d out of range", keyIndex),
@@ -892,14 +888,7 @@ func TestChannel(c *gin.Context) {
 		keyIndex = parsed
 	}
 	if keyIndex >= 0 {
-		if !channel.ChannelInfo.IsMultiKey {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "channel is not in multi-key mode",
-				"time":    0.0,
-			})
-			return
-		}
+
 		if keyIndex < 0 || keyIndex >= len(channel.GetKeys()) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,

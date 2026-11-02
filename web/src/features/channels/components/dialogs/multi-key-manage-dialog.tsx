@@ -38,6 +38,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import { useProxyPool } from '@/features/system-settings/proxy-manage/hooks/use-proxy-pool'
 import {
   ADMIN_PERMISSION_ACTIONS,
   ADMIN_PERMISSION_RESOURCES,
@@ -68,7 +69,9 @@ import {
   formatResponseTime,
   isOptionalProxyURL,
   parseProxyBinding,
-  buildPoolBinding,
+  buildRandomPoolBinding,
+  buildPinnedPoolBinding,
+  proxyEntryLabel,
 } from '../../lib'
 import type { KeyStatus, MultiKeyConfirmAction } from '../../types'
 import { useChannels } from '../channels-provider'
@@ -94,6 +97,7 @@ export function MultiKeyManageDialog({
   const { currentRow } = useChannels()
   const queryClient = useQueryClient()
   const currentUser = useAuthStore((s) => s.auth.user)
+  const { data: poolEntries = [] } = useProxyPool()
   const canEditSensitive = hasPermission(
     currentUser,
     ADMIN_PERMISSION_RESOURCES.CHANNEL,
@@ -118,6 +122,10 @@ export function MultiKeyManageDialog({
     useState<MultiKeyConfirmAction | null>(null)
   const [isPerformingAction, setIsPerformingAction] = useState(false)
   const [keyTests, setKeyTests] = useState<Record<number, KeyTestState>>({})
+  const batchTestKeyTotal = Math.max(
+    keys.length,
+    currentRow?.channel_info?.multi_key_size || 0
+  )
   const [batchTest, setBatchTest] = useState<{
     done: number
     total: number
@@ -227,7 +235,7 @@ export function MultiKeyManageDialog({
   // are suppressed; one summary toast reports the outcome.
   const handleTestAllKeys = async () => {
     if (!currentRow || batchTest) return
-    const total = currentRow.channel_info?.multi_key_size || 0
+    const total = batchTestKeyTotal
     if (total <= 0) return
     const runId = ++batchRunRef.current
     setBatchTest({ done: 0, total })
@@ -280,10 +288,11 @@ export function MultiKeyManageDialog({
     }
     if (mode === 'pool-pinned') {
       const parsed = parseProxyBinding(proxyEditor?.value)
-      setEditorBinding(buildPoolBinding(parsed.pinnedIndex ?? 0))
+      const target = parsed.pinnedUrl ?? poolEntries[0]?.url
+      setEditorBinding(target ? buildPinnedPoolBinding(target) : '')
       return
     }
-    setEditorBinding(buildPoolBinding())
+    setEditorBinding(buildRandomPoolBinding())
   }
 
   const describeProxyBinding = (value: string | undefined) => {
@@ -294,10 +303,13 @@ export function MultiKeyManageDialog({
         return t('Direct connection (no proxy)')
       case 'pool':
         return t('Global proxy pool (random)')
-      case 'pinned':
-        return t('Global proxy pool (pinned #{{index}})', {
-          index: (parsed.pinnedIndex ?? 0) + 1,
-        })
+      case 'pinned': {
+        if (!parsed.pinnedUrl) return t('Global proxy pool (pinned)')
+        const entry = poolEntries.find((item) => item.url === parsed.pinnedUrl)
+        return entry
+          ? proxyEntryLabel(entry)
+          : t('Removed proxy: {{url}}', { url: parsed.pinnedUrl })
+      }
       default:
         return value
     }
@@ -475,7 +487,9 @@ export function MultiKeyManageDialog({
         onOpenChange={onOpenChange}
         title={
           <>
-            {t('Multi-Key Management')}
+            {currentRow.channel_info?.is_multi_key
+              ? t('Multi-Key Management')
+              : t('Key Management')}
             <StatusBadge
               label={currentRow.name}
               variant='neutral'
@@ -563,7 +577,7 @@ export function MultiKeyManageDialog({
                 <RefreshCw className='h-4 w-4' />
               </Button>
 
-              {(currentRow.channel_info?.multi_key_size || 0) > 0 && (
+              {batchTestKeyTotal > 0 && (
                 <Button
                   variant='outline'
                   size='sm'
@@ -862,26 +876,35 @@ export function MultiKeyManageDialog({
           </>
         )}
         {editorMode === 'pool-pinned' && (
-          <div className='flex items-center gap-2'>
-            <Input
-              type='number'
-              min={1}
-              className='w-28'
-              value={(parseProxyBinding(proxyEditor?.value).pinnedIndex ?? 0) + 1}
-              onChange={(event) => {
-                const member = Number.parseInt(event.target.value, 10)
-                setEditorBinding(
-                  buildPoolBinding(
-                    Number.isInteger(member) && member > 0 ? member - 1 : 0
-                  )
-                )
-              }}
-              aria-label={t('Pool member number')}
-            />
-            <span className='text-muted-foreground text-xs'>
-              {t('1-based position in the global proxy pool')}
-            </span>
-          </div>
+          <Select
+            value={
+              parseProxyBinding(proxyEditor?.value).pinnedUrl ??
+              poolEntries[0]?.url ??
+              ''
+            }
+            onValueChange={(next) => {
+              if (next === null) return
+              setEditorBinding(buildPinnedPoolBinding(next))
+            }}
+            items={poolEntries.map((entry) => ({
+              value: entry.url,
+              label: proxyEntryLabel(entry),
+            }))}
+          >
+            <SelectTrigger className='w-full' aria-label={t('Pool proxy')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectGroup>
+                {poolEntries.map((entry) => (
+                  <SelectItem key={entry.url} value={entry.url}>
+                    {proxyEntryLabel(entry)}
+                    {!entry.enabled && ` (${t('Disabled')})`}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         )}
         {editorMode !== 'manual' && (
           <p className='text-muted-foreground text-xs'>

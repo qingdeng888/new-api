@@ -66,7 +66,6 @@ import {
   handleTestChannel,
   handleToggleChannelStatus,
   isChannelEnabled,
-  isMultiKeyChannel,
 } from '../lib'
 import type { Channel } from '../types'
 import { ChannelRowActionsLayoutContext } from './channel-row-actions-context'
@@ -88,7 +87,6 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const [isTogglingStatus, setIsTogglingStatus] = useState(false)
 
   const isEnabled = isChannelEnabled(channel)
-  const isMultiKey = isMultiKeyChannel(channel)
   const canEditSensitive = hasPermission(
     currentUser,
     ADMIN_PERMISSION_RESOURCES.CHANNEL,
@@ -336,15 +334,14 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             </DropdownMenuItem>
           )}
 
-          {/* Manage Keys (only for multi-key channels) */}
-          {isMultiKey && (
-            <DropdownMenuItem onClick={handleManageKeys}>
-              {t('Manage Keys')}
-              <DropdownMenuShortcut>
-                <Key size={16} />
-              </DropdownMenuShortcut>
-            </DropdownMenuItem>
-          )}
+          {/* Manage Keys works for multi-key pools and single-key channels
+              alike: it covers per-key proxy binding and connection testing. */}
+          <DropdownMenuItem onClick={handleManageKeys}>
+            {t('Manage Keys')}
+            <DropdownMenuShortcut>
+              <Key size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
 
           <DropdownMenuSeparator />
 

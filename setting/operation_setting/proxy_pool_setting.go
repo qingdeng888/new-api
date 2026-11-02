@@ -10,15 +10,24 @@ import (
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
+// ProxyPoolEntry is one outbound proxy in the global pool.
+type ProxyPoolEntry struct {
+	URL     string `json:"url"`
+	Note    string `json:"note,omitempty"`
+	Enabled bool   `json:"enabled"`
+}
+
 // ProxyPoolSetting holds the single global outbound proxy pool. Channels and
-// individual multi-key entries bind to it with "pool" (random rotation) or
-// "pool:<n>" (pinned member), instead of naming separate pools.
+// individual keys bind to it with "pool" (random rotation) or
+// "pool:url:<url>" (a specific entry), instead of naming separate pools.
 type ProxyPoolSetting struct {
-	// One proxy per line; blank lines and #-comments are ignored. Entries
-	// accept direct, http://, https://, socks5:// and socks5h:// including
-	// user:password credentials.
+	// JSON array of ProxyPoolEntry. Legacy plain-text documents (one proxy per
+	// line) are still accepted and upgraded on the next save.
 	Proxies string `json:"proxies"`
 }
+
+// ProxyPoolBindingPinnedPrefix marks a binding that pins one pool entry by URL.
+const ProxyPoolBindingPinnedPrefix = "pool:url:"
 
 var proxyPoolSetting = ProxyPoolSetting{}
 
@@ -30,38 +39,101 @@ func GetProxyPoolSetting() *ProxyPoolSetting {
 	return &proxyPoolSetting
 }
 
-// ProxyPoolEntries returns the configured proxy URLs in order.
-func ProxyPoolEntries() []string {
-	return SplitProxyPoolEntries(proxyPoolSetting.Proxies)
-}
-
-// SplitProxyPoolEntries parses a proxy list document, skipping blank lines
-// and #-comments.
-func SplitProxyPoolEntries(document string) []string {
-	var entries []string
+// ParseProxyPoolDocument parses the stored document into entries. It accepts
+// the JSON array form and the legacy line-based form.
+func ParseProxyPoolDocument(document string) []ProxyPoolEntry {
+	trimmed := strings.TrimSpace(document)
+	if trimmed == "" {
+		return nil
+	}
+	if strings.HasPrefix(trimmed, "[") {
+		var entries []ProxyPoolEntry
+		if err := common.UnmarshalJsonStr(trimmed, &entries); err == nil {
+			return entries
+		}
+	}
+	var entries []ProxyPoolEntry
 	for _, raw := range strings.Split(document, "\n") {
 		line := strings.TrimSpace(raw)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		entries = append(entries, line)
+		entries = append(entries, ProxyPoolEntry{URL: line, Enabled: true})
 	}
 	return entries
 }
 
-// ValidateProxyPoolDocument rejects documents with a malformed entry and
-// returns the entries when the whole document is valid.
-func ValidateProxyPoolDocument(document string) ([]string, error) {
-	entries := SplitProxyPoolEntries(document)
+// SerializeProxyPoolDocument renders entries as the stored JSON document.
+func SerializeProxyPoolDocument(entries []ProxyPoolEntry) string {
+	if len(entries) == 0 {
+		return ""
+	}
+	encoded, err := common.Marshal(entries)
+	if err != nil {
+		common.SysLog(common.LogText("failed to serialize proxy pool: %v", err))
+		return ""
+	}
+	return string(encoded)
+}
+
+// ValidateProxyPoolDocument rejects documents with a malformed entry.
+func ValidateProxyPoolDocument(document string) ([]ProxyPoolEntry, error) {
+	entries := ParseProxyPoolDocument(document)
 	for _, entry := range entries {
-		if entry == "direct" {
+		proxyURL := strings.TrimSpace(entry.URL)
+		if proxyURL == "" {
+			return nil, errInvalidProxyPoolEntry("")
+		}
+		if proxyURL == "direct" {
 			continue
 		}
-		if _, err := common.ParseProxyURLStrict(entry); err != nil {
-			return nil, err
+		if _, err := common.ParseProxyURLStrict(proxyURL); err != nil {
+			return nil, errInvalidProxyPoolEntry(proxyURL)
 		}
 	}
 	return entries, nil
+}
+
+type errInvalidProxyPoolEntry string
+
+func (e errInvalidProxyPoolEntry) Error() string {
+	if string(e) == "" {
+		return "proxy URL is required"
+	}
+	return "invalid proxy URL: " + string(e)
+}
+
+// ProxyPoolAllEntries returns every configured entry, including disabled ones.
+func ProxyPoolAllEntries() []ProxyPoolEntry {
+	return ParseProxyPoolDocument(proxyPoolSetting.Proxies)
+}
+
+// ProxyPoolEntries returns the URLs of the enabled entries in order.
+func ProxyPoolEntries() []string {
+	var urls []string
+	for _, entry := range ProxyPoolAllEntries() {
+		if entry.Enabled && strings.TrimSpace(entry.URL) != "" {
+			urls = append(urls, entry.URL)
+		}
+	}
+	return urls
+}
+
+// FindProxyPoolEntry returns the entry with the given URL, if present.
+func FindProxyPoolEntry(proxyURL string) (ProxyPoolEntry, bool) {
+	target := strings.TrimSpace(proxyURL)
+	for _, entry := range ProxyPoolAllEntries() {
+		if entry.URL == target {
+			return entry, true
+		}
+	}
+	return ProxyPoolEntry{}, false
+}
+
+// ProxyPoolHasURL reports whether the pool contains the URL in any state.
+func ProxyPoolHasURL(proxyURL string) bool {
+	_, ok := FindProxyPoolEntry(proxyURL)
+	return ok
 }
 
 // Runtime health of the pool members, keyed by proxy URL. Cool-downs grow
@@ -103,7 +175,7 @@ func IsProxyCooling(proxyURL string, now int64) bool {
 }
 
 // MarkProxyTransportResult records the outcome of a request made through a
-// pool member so random rotation can skip failing exits.
+// pool member so rotation can skip failing exits.
 func MarkProxyTransportResult(proxyURL string, success bool) {
 	if proxyURL == "" {
 		return
@@ -120,13 +192,17 @@ func MarkProxyTransportResult(proxyURL string, success bool) {
 	proxyPoolHealth[proxyURL] = state
 }
 
-// PickProxyPoolMember resolves a "pool" or "pool:<n>" binding to one proxy
-// URL from the global list. Random mode skips members in cool-down and
-// transfers traffic to the rest; a fully cooled pool falls back to the
-// member that expires first. Pinned mode prefers its member and transfers
-// to another healthy one while it cools down, returning once it recovers.
+// IsProxyPoolBinding reports whether the binding references the global pool.
+func IsProxyPoolBinding(binding string) bool {
+	return binding == "pool" || strings.HasPrefix(binding, "pool:")
+}
+
+// PickProxyPoolMember resolves a pool binding to one proxy URL from the
+// enabled entries. "pool" rotates randomly; "pool:url:<url>" pins one entry
+// and transfers to another healthy member while it cools down, returning once
+// it recovers. A fully cooled pool falls back to the entry that expires first.
 func PickProxyPoolMember(binding string) (string, bool) {
-	if binding != "pool" && !strings.HasPrefix(binding, "pool:") {
+	if !IsProxyPoolBinding(binding) {
 		return "", false
 	}
 	entries := ProxyPoolEntries()
@@ -153,8 +229,7 @@ func PickProxyPoolMember(binding string) (string, bool) {
 		}
 		return best
 	}
-
-	if binding == "pool" {
+	randomHealthy := func() (string, bool) {
 		var healthyIdx []int
 		for i := range entries {
 			if healthy(i) {
@@ -167,16 +242,36 @@ func PickProxyPoolMember(binding string) (string, bool) {
 		return entries[earliest()], true
 	}
 
-	pinned := strings.TrimPrefix(binding, "pool:")
-	index, err := strconv.Atoi(pinned)
-	if err != nil || index < 0 || index >= len(entries) {
-		return "", false
+	if binding == "pool" {
+		return randomHealthy()
 	}
-	if healthy(index) {
-		return entries[index], true
+
+	pinnedIndex := -1
+	if pinnedURL, ok := strings.CutPrefix(binding, ProxyPoolBindingPinnedPrefix); ok {
+		for i, entry := range entries {
+			if entry == pinnedURL {
+				pinnedIndex = i
+				break
+			}
+		}
+		if pinnedIndex < 0 {
+			// The pinned entry was removed or disabled: fall back to rotation.
+			return randomHealthy()
+		}
+	} else {
+		// Legacy numeric binding pool:<n>.
+		index, err := strconv.Atoi(strings.TrimPrefix(binding, "pool:"))
+		if err != nil || index < 0 || index >= len(entries) {
+			return randomHealthy()
+		}
+		pinnedIndex = index
+	}
+
+	if healthy(pinnedIndex) {
+		return entries[pinnedIndex], true
 	}
 	for i := 1; i < len(entries); i++ {
-		candidate := (index + i) % len(entries)
+		candidate := (pinnedIndex + i) % len(entries)
 		if healthy(candidate) {
 			return entries[candidate], true
 		}

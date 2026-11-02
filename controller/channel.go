@@ -1659,8 +1659,10 @@ func ManageMultiKeys(c *gin.Context) {
 		return
 	}
 
-	if !channel.ChannelInfo.IsMultiKey {
-		common.ApiErrorT(c, "This channel is not in multi-key mode")
+	// Single-key channels reuse this endpoint for key-level proxy binding
+	// and per-key testing, so only an empty channel is rejected.
+	if len(channel.GetKeys()) == 0 {
+		common.ApiErrorT(c, "This channel has no keys")
 		return
 	}
 	if multiKeyActionRequiresSensitiveWrite(request.Action) &&
@@ -1806,7 +1808,7 @@ func ManageMultiKeys(c *gin.Context) {
 		}
 
 		keyIndex := *request.KeyIndex
-		if keyIndex < 0 || keyIndex >= channel.ChannelInfo.MultiKeySize {
+		if keyIndex < 0 || keyIndex >= len(channel.GetKeys()) {
 			common.ApiErrorT(c, "Key index out of range")
 			return
 		}
@@ -1850,7 +1852,7 @@ func ManageMultiKeys(c *gin.Context) {
 		}
 
 		keyIndex := *request.KeyIndex
-		if keyIndex < 0 || keyIndex >= channel.ChannelInfo.MultiKeySize {
+		if keyIndex < 0 || keyIndex >= len(channel.GetKeys()) {
 			common.ApiErrorT(c, "Key index out of range")
 			return
 		}
@@ -1922,7 +1924,7 @@ func ManageMultiKeys(c *gin.Context) {
 		}
 
 		var disabledCount int
-		for i := 0; i < channel.ChannelInfo.MultiKeySize; i++ {
+		for i := 0; i < len(channel.GetKeys()); i++ {
 			status := 1 // default enabled
 			if s, exists := channel.ChannelInfo.MultiKeyStatusList[i]; exists {
 				status = s
@@ -1960,7 +1962,7 @@ func ManageMultiKeys(c *gin.Context) {
 		}
 
 		keyIndex := *request.KeyIndex
-		if keyIndex < 0 || keyIndex >= channel.ChannelInfo.MultiKeySize {
+		if keyIndex < 0 || keyIndex >= len(channel.GetKeys()) {
 			common.ApiErrorT(c, "Key index out of range")
 			return
 		}
@@ -2138,7 +2140,7 @@ func ManageMultiKeys(c *gin.Context) {
 		}
 
 		keyIndex := *request.KeyIndex
-		if keyIndex < 0 || keyIndex >= channel.ChannelInfo.MultiKeySize {
+		if keyIndex < 0 || keyIndex >= len(channel.GetKeys()) {
 			common.ApiErrorT(c, "Key index out of range")
 			return
 		}

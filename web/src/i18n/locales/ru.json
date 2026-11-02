@@ -4233,7 +4233,7 @@
     "Not tested": "Не протестировано",
     "Not used for upstream training by default": "По умолчанию не используется для обучения у поставщика",
     "Not used yet": "Ещё не использовался",
-    "Note": "Примечание",
+    "Note": "Заметка",
     "Notice": "Уведомления",
     "Notification Email": "Электронная почта для уведомлений",
     "Notification Method": "Метод уведомления",
@@ -7399,6 +7399,22 @@
     "Pool member number": "Номер участника пула",
     "1-based position in the global proxy pool": "Позиция в глобальном пуле (с 1)",
     "Uses the proxies from System Settings → Request policies → Channel health. Failing proxies cool down and traffic transfers automatically.": "Использует прокси из Настройки системы → Политики запросов → Состояние каналов. Сбойные прокси уходят в охлаждение, трафик переключается автоматически.",
-    "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.": "Запросы случайно распределяются по прокси из Настройки системы → Политики запросов → Состояние каналов. Сбойные прокси уходят в охлаждение, трафик переключается автоматически."
+    "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.": "Запросы случайно распределяются по прокси из Настройки системы → Политики запросов → Состояние каналов. Сбойные прокси уходят в охлаждение, трафик переключается автоматически.",
+    "Proxy management": "Управление прокси",
+    "Outbound proxy list for every channel and key. Keys bind to a specific entry or rotate randomly across all enabled entries; failing proxies cool down and transfer automatically.": "Список исходящих прокси для каналов и ключей. Ключ привязывается к конкретному прокси или случайно распределяется по всем включённым; сбойные прокси уходят в охлаждение, трафик переключается автоматически.",
+    "Add proxy": "Добавить прокси",
+    "Edit proxy": "Изменить прокси",
+    "Delete proxy": "Удалить прокси",
+    "Delete this proxy? Keys pinned to it fall back to random rotation.": "Удалить этот прокси? Привязанные к нему ключи вернутся к случайной ротации.",
+    "Bulk add": "Массовое добавление",
+    "One proxy per line. Blank lines and # comments are ignored; duplicates are skipped.": "Один прокси на строку. Пустые строки и комментарии # игнорируются, дубликаты пропускаются.",
+    "Optional, e.g. US datacenter": "Необязательно, например: дата-центр США",
+    "No proxies configured yet.": "Прокси ещё не настроены.",
+    "Specific pool proxy": "Конкретный прокси пула",
+    "Pool proxy": "Прокси пула",
+    "Pin one proxy from the pool. Traffic moves to another healthy entry while it is failing.": "Закрепляет один прокси из пула. При сбое трафик переходит на другую рабочую запись.",
+    "Removed proxy: {{url}}": "Прокси удалён: {{url}}",
+    "Key Management": "Управление ключами",
+    "Failed to save proxy pool": "Не удалось сохранить пул прокси"
   }
 }

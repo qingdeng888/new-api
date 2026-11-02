@@ -7399,6 +7399,22 @@
     "Pool member number": "Pool member number",
     "1-based position in the global proxy pool": "1-based position in the global proxy pool",
     "Uses the proxies from System Settings → Request policies → Channel health. Failing proxies cool down and traffic transfers automatically.": "Uses the proxies from System Settings → Request policies → Channel health. Failing proxies cool down and traffic transfers automatically.",
-    "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.": "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically."
+    "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.": "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.",
+    "Proxy management": "Proxy management",
+    "Outbound proxy list for every channel and key. Keys bind to a specific entry or rotate randomly across all enabled entries; failing proxies cool down and transfer automatically.": "Outbound proxy list for every channel and key. Keys bind to a specific entry or rotate randomly across all enabled entries; failing proxies cool down and transfer automatically.",
+    "Add proxy": "Add proxy",
+    "Edit proxy": "Edit proxy",
+    "Delete proxy": "Delete proxy",
+    "Delete this proxy? Keys pinned to it fall back to random rotation.": "Delete this proxy? Keys pinned to it fall back to random rotation.",
+    "Bulk add": "Bulk add",
+    "One proxy per line. Blank lines and # comments are ignored; duplicates are skipped.": "One proxy per line. Blank lines and # comments are ignored; duplicates are skipped.",
+    "Optional, e.g. US datacenter": "Optional, e.g. US datacenter",
+    "No proxies configured yet.": "No proxies configured yet.",
+    "Specific pool proxy": "Specific pool proxy",
+    "Pool proxy": "Pool proxy",
+    "Pin one proxy from the pool. Traffic moves to another healthy entry while it is failing.": "Pin one proxy from the pool. Traffic moves to another healthy entry while it is failing.",
+    "Removed proxy: {{url}}": "Removed proxy: {{url}}",
+    "Key Management": "Key Management",
+    "Failed to save proxy pool": "Failed to save proxy pool"
   }
 }

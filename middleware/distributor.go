@@ -671,7 +671,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 
 	var key string
 	var index int
-	if pinnedIndex, ok := common.GetContextKeyType[int](c, constant.ContextKeyChannelPinnedMultiKeyIndex); ok && channel.ChannelInfo.IsMultiKey {
+	if pinnedIndex, ok := common.GetContextKeyType[int](c, constant.ContextKeyChannelPinnedMultiKeyIndex); ok {
 		// Only the channel test path pins an index, so a single key —
 		// including a disabled one — can be probed without rotating the
 		// polling cursor. Anything else keeps the normal selection.
@@ -704,10 +704,10 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	// concrete member per request so failing proxies transfer the traffic.
 	settings := channel.GetSetting()
 	proxyBinding := settings.Proxy
-	if channel.ChannelInfo.IsMultiKey {
-		if keyProxy := channel.ChannelInfo.MultiKeyProxies[index]; keyProxy != "" {
-			proxyBinding = keyProxy
-		}
+	// A per-key proxy applies to single-key channels as well: selection
+	// always yields index 0 for them.
+	if keyProxy := channel.ChannelInfo.MultiKeyProxies[index]; keyProxy != "" {
+		proxyBinding = keyProxy
 	}
 	switch {
 	case proxyBinding == "":

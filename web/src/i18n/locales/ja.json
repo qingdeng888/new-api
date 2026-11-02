@@ -4233,7 +4233,7 @@
     "Not tested": "未テスト",
     "Not used for upstream training by default": "デフォルトで上流の学習には使用されません",
     "Not used yet": "未使用",
-    "Note": "注記",
+    "Note": "メモ",
     "Notice": "通知",
     "Notification Email": "通知メール",
     "Notification Method": "通知方法",
@@ -7399,6 +7399,22 @@
     "Pool member number": "プールメンバー番号",
     "1-based position in the global proxy pool": "グローバルプール内の位置（1 始まり）",
     "Uses the proxies from System Settings → Request policies → Channel health. Failing proxies cool down and traffic transfers automatically.": "システム設定 → リクエストポリシー → チャンネルヘルス で設定したプロキシを使用します。失敗したプロキシはクールダウンし、トラフィックは自動で切り替わります。",
-    "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.": "システム設定 → リクエストポリシー → チャンネルヘルス のプロキシ間でランダムにローテーションします。失敗したプロキシはクールダウンし、自動で切り替わります。"
+    "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.": "システム設定 → リクエストポリシー → チャンネルヘルス のプロキシ間でランダムにローテーションします。失敗したプロキシはクールダウンし、自動で切り替わります。",
+    "Proxy management": "プロキシ管理",
+    "Outbound proxy list for every channel and key. Keys bind to a specific entry or rotate randomly across all enabled entries; failing proxies cool down and transfer automatically.": "チャンネルとキーの送信プロキシ一覧です。キーは特定のプロキシに固定するか、有効な全プロキシをランダムにローテーションできます。失敗したプロキシはクールダウンし、自動で切り替わります。",
+    "Add proxy": "プロキシを追加",
+    "Edit proxy": "プロキシを編集",
+    "Delete proxy": "プロキシを削除",
+    "Delete this proxy? Keys pinned to it fall back to random rotation.": "このプロキシを削除しますか？固定しているキーはランダムローテーションに戻ります。",
+    "Bulk add": "一括追加",
+    "One proxy per line. Blank lines and # comments are ignored; duplicates are skipped.": "1行に1つのプロキシ。空行と # コメントは無視され、重複はスキップされます。",
+    "Optional, e.g. US datacenter": "任意、例：米国データセンター",
+    "No proxies configured yet.": "プロキシはまだ設定されていません。",
+    "Specific pool proxy": "プール内の特定プロキシ",
+    "Pool proxy": "プールプロキシ",
+    "Pin one proxy from the pool. Traffic moves to another healthy entry while it is failing.": "プールから1つのプロキシを固定します。障害中は他の正常なエントリに切り替わります。",
+    "Removed proxy: {{url}}": "削除されたプロキシ: {{url}}",
+    "Key Management": "キー管理",
+    "Failed to save proxy pool": "プロキシプールの保存に失敗しました"
   }
 }
