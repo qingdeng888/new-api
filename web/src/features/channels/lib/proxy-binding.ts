@@ -17,10 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import {
-  maskProxyUrl,
-  type ProxyPoolEntry,
-} from '@/features/system-settings/proxy-manage/types'
+import type { ProxyPoolEntry } from '@/features/system-settings/proxy-manage/types'
 
 export const PINNED_POOL_PREFIX = 'pool:url:'
 
@@ -67,8 +64,7 @@ export function isPoolBinding(value: string | undefined): boolean {
   return mode === 'pool' || mode === 'pinned'
 }
 
-/** Label for a pool entry in a picker: "note · masked-url" or the masked URL. */
+/** Label for a pool entry in a picker: "note · url" or the plain URL. */
 export function proxyEntryLabel(entry: ProxyPoolEntry): string {
-  const masked = maskProxyUrl(entry.url)
-  return entry.note ? `${entry.note} · ${masked}` : masked
+  return entry.note ? `${entry.note} · ${entry.url}` : entry.url
 }

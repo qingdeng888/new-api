@@ -23,15 +23,6 @@ export interface ProxyPoolEntry {
   enabled: boolean
 }
 
-/** Masks the credentials of a proxy URL for compact display. */
-export function maskProxyUrl(url: string): string {
-  const at = url.lastIndexOf('@')
-  if (at <= 0) return url
-  const schemeEnd = url.indexOf('://')
-  const prefix = schemeEnd >= 0 ? url.slice(0, schemeEnd + 3) : ''
-  return `${prefix}***@${url.slice(at + 1)}`
-}
-
 export interface ProxyTestResult {
   url: string
   ok: boolean

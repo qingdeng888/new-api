@@ -36,11 +36,7 @@ import { getServerMessage } from '@/lib/server-error-message'
 
 import { testProxyPool } from '../api'
 import { useProxyPool, useSaveProxyPool } from '../hooks/use-proxy-pool'
-import {
-  maskProxyUrl,
-  type ProxyPoolEntry,
-  type ProxyTestResult,
-} from '../types'
+import type { ProxyPoolEntry, ProxyTestResult } from '../types'
 
 type EditorState = {
   index: number | null
@@ -347,7 +343,7 @@ export function ProxyPoolTable() {
             cell: (entry) => (
               <Checkbox
                 aria-label={t('Select {{note}}', {
-                  note: entry.note || maskProxyUrl(entry.url),
+                  note: entry.note || entry.url,
                 })}
                 checked={selected.has(entry.url)}
                 onCheckedChange={(checked) =>
@@ -370,7 +366,7 @@ export function ProxyPoolTable() {
             cell: (entry) => (
               <span className='flex min-w-0 items-center gap-1.5'>
                 <code className='bg-muted min-w-0 truncate rounded px-1.5 py-0.5 font-mono text-xs'>
-                  {maskProxyUrl(entry.url)}
+                  {entry.url}
                 </code>
                 <CopyButton
                   value={entry.url}
