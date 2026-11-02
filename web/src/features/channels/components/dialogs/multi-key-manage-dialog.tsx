@@ -902,15 +902,6 @@ export function MultiKeyManageDialog({
           <Button
             variant='outline'
             size='sm'
-            onClick={() =>
-              setProxyEditor((prev) => (prev ? { ...prev, value: '' } : prev))
-            }
-          >
-            {t('Clear')}
-          </Button>
-          <Button
-            variant='outline'
-            size='sm'
             onClick={() => setProxyEditor(null)}
           >
             {t('Cancel')}

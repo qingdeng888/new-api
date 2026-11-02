@@ -193,6 +193,10 @@ func TestMultiKeyGetKeyStatusReturnsFullKeys(t *testing.T) {
 
 func TestMultiKeySetKeyProxyRoundTrip(t *testing.T) {
 	root := setupMultiKeyManageTestDB(t)
+	previous := operation_setting.GetProxyPoolSetting().Proxies
+	t.Cleanup(func() { operation_setting.GetProxyPoolSetting().Proxies = previous })
+	operation_setting.GetProxyPoolSetting().Proxies =
+		`[{"url":"socks5://user:pass@10.0.0.8:1080","enabled":true}]`
 
 	channel := &model.Channel{
 		Name:   t.Name(),
@@ -227,17 +231,25 @@ func TestMultiKeySetKeyProxyRoundTrip(t *testing.T) {
 		return result
 	}
 
-	// A valid proxy is stored and reported back.
+	// A pool binding is stored and reported back.
+	pinned := operation_setting.ProxyPoolBindingPinnedPrefix + "socks5://user:pass@10.0.0.8:1080"
 	result := callManage(MultiKeyManageRequest{
 		ChannelId: channel.Id, Action: "set_key_proxy",
-		KeyIndex: common.GetPointer(1), Proxy: "socks5://user:pass@10.0.0.8:1080",
+		KeyIndex: common.GetPointer(1), Proxy: pinned,
 	})
 	assert.Equal(t, true, result["success"])
 
-	// An unsupported scheme is rejected before touching the channel.
+	// A manually typed proxy URL is not allowed for keys any more.
 	result = callManage(MultiKeyManageRequest{
 		ChannelId: channel.Id, Action: "set_key_proxy",
-		KeyIndex: common.GetPointer(0), Proxy: "ftp://nope:21",
+		KeyIndex: common.GetPointer(0), Proxy: "socks5://user:pass@10.0.0.8:1080",
+	})
+	assert.Equal(t, false, result["success"])
+
+	// An unsupported pool reference is rejected before touching the channel.
+	result = callManage(MultiKeyManageRequest{
+		ChannelId: channel.Id, Action: "set_key_proxy",
+		KeyIndex: common.GetPointer(0), Proxy: operation_setting.ProxyPoolBindingPinnedPrefix + "ftp://nope:21",
 	})
 	assert.Equal(t, false, result["success"])
 
@@ -249,7 +261,7 @@ func TestMultiKeySetKeyProxyRoundTrip(t *testing.T) {
 	first := keys[0].(map[string]any)
 	second := keys[1].(map[string]any)
 	assert.NotContains(t, first, "proxy")
-	assert.Equal(t, "socks5://user:pass@10.0.0.8:1080", second["proxy"])
+	assert.Equal(t, pinned, second["proxy"])
 
 	// An empty value clears the per-key proxy.
 	result = callManage(MultiKeyManageRequest{
