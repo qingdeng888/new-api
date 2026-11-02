@@ -7425,6 +7425,12 @@
     "Unreachable": "Недоступен",
     "All {{count}} proxies are reachable": "Все прокси ({{count}}) доступны",
     "{{failed}} of {{count}} proxies failed": "Не прошли проверку {{failed}} из {{count}} прокси",
-    "Failed to test proxies": "Не удалось проверить прокси"
+    "Failed to test proxies": "Не удалось проверить прокси",
+    "No proxy (direct connection)": "Без прокси (прямое подключение)",
+    "Legacy manual proxy": "Устаревший ручной прокси",
+    "This key still uses a manually entered proxy. Keys may only use a proxy pool entry or no proxy; choose one to continue.": "Этот ключ использует прокси, введённый вручную. Ключи могут использовать только прокси из пула или без прокси; выберите вариант, чтобы продолжить.",
+    "This key connects directly without any proxy.": "Этот ключ подключается напрямую без прокси.",
+    "Key proxies must use the global proxy pool or direct": "Прокси ключей должны быть из глобального пула или прямыми",
+    "Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically.": "Использует прокси из Настройки системы → Управление прокси. Сбойные прокси уходят в охлаждение, трафик переключается автоматически."
   }
 }

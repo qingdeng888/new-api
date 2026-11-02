@@ -321,6 +321,13 @@ func TestSingleKeyChannelManagesKeyProxy(t *testing.T) {
 	keys = result["data"].(map[string]any)["keys"].([]any)
 	assert.Equal(t, pinned, keys[0].(map[string]any)["proxy"])
 
+	// A manually typed proxy URL is not allowed for keys any more.
+	result = callManage(MultiKeyManageRequest{
+		ChannelId: channel.Id, Action: "set_key_proxy",
+		KeyIndex: common.GetPointer(0), Proxy: "socks5://10.7.0.9:1080",
+	})
+	assert.Equal(t, false, result["success"])
+
 	// A binding to an entry missing from the pool is rejected.
 	result = callManage(MultiKeyManageRequest{
 		ChannelId: channel.Id, Action: "set_key_proxy",

@@ -52,3 +52,16 @@ func ValidateProxyBinding(binding string) error {
 	_, err := common.ParseProxyURLStrict(b)
 	return err
 }
+
+// ValidateKeyProxyBinding restricts key-level bindings to the global pool or
+// direct dialing: keys may not carry a manually typed proxy URL.
+func ValidateKeyProxyBinding(binding string) error {
+	b := strings.TrimSpace(binding)
+	if b == "" || b == MultiKeyProxyDirect {
+		return nil
+	}
+	if !operation_setting.IsProxyPoolBinding(b) {
+		return fmt.Errorf("key proxies must use the global proxy pool or direct")
+	}
+	return ValidateProxyBinding(b)
+}

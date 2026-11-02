@@ -7425,6 +7425,12 @@
     "Unreachable": "Injoignable",
     "All {{count}} proxies are reachable": "Les {{count}} proxies sont joignables",
     "{{failed}} of {{count}} proxies failed": "{{failed}} proxies sur {{count}} ont échoué",
-    "Failed to test proxies": "Échec du test des proxies"
+    "Failed to test proxies": "Échec du test des proxies",
+    "No proxy (direct connection)": "Aucun proxy (connexion directe)",
+    "Legacy manual proxy": "Ancien proxy manuel",
+    "This key still uses a manually entered proxy. Keys may only use a proxy pool entry or no proxy; choose one to continue.": "Cette clé utilise encore un proxy saisi manuellement. Les clés ne peuvent utiliser qu’une entrée du pool ou aucun proxy ; choisissez une option pour continuer.",
+    "This key connects directly without any proxy.": "Cette clé se connecte directement sans proxy.",
+    "Key proxies must use the global proxy pool or direct": "Les proxies des clés doivent provenir du pool global ou être directs",
+    "Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically.": "Utilise les proxies de Paramètres système → Gestion des proxies. Les proxies défaillants refroidissent et le trafic bascule automatiquement."
   }
 }

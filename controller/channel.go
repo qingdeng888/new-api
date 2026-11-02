@@ -2146,8 +2146,8 @@ func ManageMultiKeys(c *gin.Context) {
 		}
 
 		proxy := strings.TrimSpace(request.Proxy)
-		if err := model.ValidateProxyBinding(proxy); err != nil {
-			common.ApiErrorT(c, "Invalid proxy address")
+		if err := model.ValidateKeyProxyBinding(proxy); err != nil {
+			common.ApiErrorT(c, "Key proxies must use the global proxy pool or direct")
 			return
 		}
 

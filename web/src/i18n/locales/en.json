@@ -7425,6 +7425,12 @@
     "Unreachable": "Unreachable",
     "All {{count}} proxies are reachable": "All {{count}} proxies are reachable",
     "{{failed}} of {{count}} proxies failed": "{{failed}} of {{count}} proxies failed",
-    "Failed to test proxies": "Failed to test proxies"
+    "Failed to test proxies": "Failed to test proxies",
+    "No proxy (direct connection)": "No proxy (direct connection)",
+    "Legacy manual proxy": "Legacy manual proxy",
+    "This key still uses a manually entered proxy. Keys may only use a proxy pool entry or no proxy; choose one to continue.": "This key still uses a manually entered proxy. Keys may only use a proxy pool entry or no proxy; choose one to continue.",
+    "This key connects directly without any proxy.": "This key connects directly without any proxy.",
+    "Key proxies must use the global proxy pool or direct": "Key proxies must use the global proxy pool or direct",
+    "Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically.": "Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically."
   }
 }

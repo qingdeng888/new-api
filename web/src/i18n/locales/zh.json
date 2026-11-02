@@ -7425,6 +7425,12 @@
     "Unreachable": "不可达",
     "All {{count}} proxies are reachable": "{{count}} 个代理全部可达",
     "{{failed}} of {{count}} proxies failed": "{{count}} 个代理中有 {{failed}} 个失败",
-    "Failed to test proxies": "测试代理失败"
+    "Failed to test proxies": "测试代理失败",
+    "No proxy (direct connection)": "无代理（本机直连）",
+    "Legacy manual proxy": "旧版手动代理",
+    "This key still uses a manually entered proxy. Keys may only use a proxy pool entry or no proxy; choose one to continue.": "该密钥仍在使用手动填写的代理。密钥只能使用代理池中的代理或无代理，请选择一项后继续。",
+    "This key connects directly without any proxy.": "该密钥不使用任何代理，直接连接。",
+    "Key proxies must use the global proxy pool or direct": "密钥代理只能使用全局代理池或直连",
+    "Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically.": "使用「系统设置 → 代理管理」中的代理；失败的代理会进入冷却并自动转移流量。"
   }
 }

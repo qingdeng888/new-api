@@ -28,7 +28,6 @@ import { StaticDataTable } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -67,7 +66,6 @@ import {
   handleTestChannel,
   isDestructiveAction,
   formatResponseTime,
-  isOptionalProxyURL,
   parseProxyBinding,
   buildRandomPoolBinding,
   buildPinnedPoolBinding,
@@ -268,22 +266,20 @@ export function MultiKeyManageDialog({
     const mode = parseProxyBinding(proxyEditor?.value).mode
     if (mode === 'pool') return 'pool-random'
     if (mode === 'pinned') return 'pool-pinned'
-    return 'manual'
+    if (mode === 'direct') return 'direct'
+    // A plain URL is a legacy binding: keys may only use the pool or direct.
+    if (mode === 'url') return 'legacy'
+    return 'direct'
   })()
-  const proxyEditorInvalid =
-    proxyEditor !== null &&
-    editorMode === 'manual' &&
-    proxyEditor.value.trim() !== '' &&
-    proxyEditor.value.trim() !== 'direct' &&
-    !isOptionalProxyURL(proxyEditor.value)
+  const proxyEditorInvalid = editorMode === 'legacy'
 
   const setEditorBinding = (value: string) =>
     setProxyEditor((prev) => (prev ? { ...prev, value } : prev))
 
   const handleEditorModeChange = (mode: string | null) => {
     if (mode === null) return
-    if (mode === 'manual') {
-      setEditorBinding('')
+    if (mode === 'direct') {
+      setEditorBinding('direct')
       return
     }
     if (mode === 'pool-pinned') {
@@ -835,9 +831,14 @@ export function MultiKeyManageDialog({
           </SelectTrigger>
           <SelectContent alignItemWithTrigger={false}>
             <SelectGroup>
-              <SelectItem value='manual'>
-                {t('Manual proxy address')}
+              <SelectItem value='direct'>
+                {t('No proxy (direct connection)')}
               </SelectItem>
+              {editorMode === 'legacy' && (
+                <SelectItem value='legacy' disabled>
+                  {t('Legacy manual proxy')}
+                </SelectItem>
+              )}
               <SelectItem value='pool-random'>
                 {t('Global proxy pool (random)')}
               </SelectItem>
@@ -847,33 +848,12 @@ export function MultiKeyManageDialog({
             </SelectGroup>
           </SelectContent>
         </Select>
-        {editorMode === 'manual' && (
-          <>
-            <Input
-              aria-label={t('Proxy Address')}
-              placeholder='http://user:pass@ip:port  |  socks5://user:pass@ip:port'
-              spellCheck={false}
-              value={proxyEditor?.value ?? ''}
-              onChange={(event) =>
-                setProxyEditor((prev) =>
-                  prev ? { ...prev, value: event.target.value } : prev
-                )
-              }
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !proxyEditorInvalid) {
-                  event.preventDefault()
-                  void handleSaveProxy()
-                }
-              }}
-            />
-            {proxyEditorInvalid && (
-              <p className='text-destructive text-xs'>
-                {t(
-                  'Proxy address must use HTTP, HTTPS, SOCKS5, or SOCKS5H and include a valid host'
-                )}
-              </p>
+        {editorMode === 'legacy' && (
+          <p className='text-destructive text-xs'>
+            {t(
+              'This key still uses a manually entered proxy. Keys may only use a proxy pool entry or no proxy; choose one to continue.'
             )}
-          </>
+          </p>
         )}
         {editorMode === 'pool-pinned' && (
           <Select
@@ -906,11 +886,16 @@ export function MultiKeyManageDialog({
             </SelectContent>
           </Select>
         )}
-        {editorMode !== 'manual' && (
+        {(editorMode === 'pool-random' || editorMode === 'pool-pinned') && (
           <p className='text-muted-foreground text-xs'>
             {t(
-              'Uses the proxies from System Settings → Request policies → Channel health. Failing proxies cool down and traffic transfers automatically.'
+              'Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically.'
             )}
+          </p>
+        )}
+        {editorMode === 'direct' && (
+          <p className='text-muted-foreground text-xs'>
+            {t('This key connects directly without any proxy.')}
           </p>
         )}
         <div className='flex justify-end gap-2'>

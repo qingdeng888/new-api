@@ -7425,6 +7425,12 @@
     "Unreachable": "Không thể kết nối",
     "All {{count}} proxies are reachable": "Tất cả {{count}} proxy đều kết nối được",
     "{{failed}} of {{count}} proxies failed": "{{failed}}/{{count}} proxy thất bại",
-    "Failed to test proxies": "Kiểm tra proxy thất bại"
+    "Failed to test proxies": "Kiểm tra proxy thất bại",
+    "No proxy (direct connection)": "Không proxy (kết nối trực tiếp)",
+    "Legacy manual proxy": "Proxy thủ công cũ",
+    "This key still uses a manually entered proxy. Keys may only use a proxy pool entry or no proxy; choose one to continue.": "Khóa này vẫn dùng proxy nhập tay. Khóa chỉ có thể dùng proxy trong pool hoặc không proxy; hãy chọn một mục để tiếp tục.",
+    "This key connects directly without any proxy.": "Khóa này kết nối trực tiếp không qua proxy.",
+    "Key proxies must use the global proxy pool or direct": "Proxy của khóa phải dùng pool toàn cục hoặc kết nối trực tiếp",
+    "Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically.": "Dùng proxy từ Cài đặt hệ thống → Quản lý proxy. Proxy lỗi tạm nghỉ và lưu lượng tự chuyển."
   }
 }

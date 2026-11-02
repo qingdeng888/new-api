@@ -7425,6 +7425,12 @@
     "Unreachable": "到達不能",
     "All {{count}} proxies are reachable": "{{count}} 件のプロキシすべてに到達できました",
     "{{failed}} of {{count}} proxies failed": "{{count}} 件中 {{failed}} 件のプロキシが失敗しました",
-    "Failed to test proxies": "プロキシのテストに失敗しました"
+    "Failed to test proxies": "プロキシのテストに失敗しました",
+    "No proxy (direct connection)": "プロキシなし（直接接続）",
+    "Legacy manual proxy": "旧式の手動プロキシ",
+    "This key still uses a manually entered proxy. Keys may only use a proxy pool entry or no proxy; choose one to continue.": "このキーは手動入力のプロキシを使用しています。キーはプール内のプロキシまたはプロキシなしのみ利用できます。いずれかを選択してください。",
+    "This key connects directly without any proxy.": "このキーはプロキシを使わずに直接接続します。",
+    "Key proxies must use the global proxy pool or direct": "キーのプロキシはグローバルプールまたは直接接続のみ使用できます",
+    "Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically.": "システム設定 → プロキシ管理 のプロキシを使用します。失敗したプロキシはクールダウンし、自動で切り替わります。"
   }
 }
