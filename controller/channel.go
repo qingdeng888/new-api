@@ -1653,6 +1653,13 @@ func ManageMultiKeys(c *gin.Context) {
 		return
 	}
 
+	// Load the channel only after taking the per-channel lock: runtime state
+	// writes (cool-downs, streaks) hold the same lock, so loading first would
+	// let management actions overwrite fresher state with a stale snapshot.
+	lock := model.GetChannelPollingLock(request.ChannelId)
+	lock.Lock()
+	defer lock.Unlock()
+
 	channel, err := model.GetChannelById(request.ChannelId, true)
 	if err != nil {
 		common.ApiErrorT(c, "Channel does not exist")
@@ -1680,10 +1687,6 @@ func ManageMultiKeys(c *gin.Context) {
 			"id":     channel.Id,
 		})
 	}
-
-	lock := model.GetChannelPollingLock(channel.Id)
-	lock.Lock()
-	defer lock.Unlock()
 
 	switch request.Action {
 	case "get_key_status":

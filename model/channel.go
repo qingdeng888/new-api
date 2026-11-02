@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -318,6 +319,18 @@ const (
 	MultiKeyCooldownMaxSeconds  int64 = 1800
 )
 
+// GetResolvedProxy returns the channel's outbound proxy with global-pool
+// bindings resolved to a concrete member. Non-pool bindings pass through,
+// so background paths (task polling, MJ fetch) can share the distributor's
+// resolution rules.
+func (channel *Channel) GetResolvedProxy() string {
+	proxy := channel.GetSetting().Proxy
+	if resolved, ok := operation_setting.PickProxyPoolMember(proxy); ok {
+		return resolved
+	}
+	return proxy
+}
+
 // MultiKeyProxyDirect stored as a key's proxy marks the key as dialing
 // directly, ignoring the channel-level proxy (CPA-style per-credential
 // override). Any other non-empty value must be a valid proxy URL.
@@ -386,14 +399,22 @@ func updateMultiKeyKeyRuntimeState(channelId int, usingKey string, apply func(in
 	defer pollingLock.Unlock()
 
 	changed := false
+	cacheFound := false
 	if common.MemoryCacheEnabled {
 		if channelCache, _ := CacheGetChannel(channelId); channelCache != nil && channelCache.ChannelInfo.IsMultiKey {
+			cacheFound = true
 			if keyIndex := multiKeyKeyIndex(channelCache.GetKeys(), usingKey); keyIndex >= 0 {
 				if apply(&channelCache.ChannelInfo, keyIndex) {
 					changed = true
 				}
 			}
 		}
+	}
+	// The cache is rebuilt from the DB and every write path updates both, so
+	// an unchanged cache means the DB holds nothing new either — skip the
+	// read that used to run on every successful relayed request.
+	if common.MemoryCacheEnabled && cacheFound && !changed {
+		return false
 	}
 	channel, err := GetChannelById(channelId, true)
 	if err != nil || !channel.ChannelInfo.IsMultiKey {
@@ -741,12 +762,36 @@ func (channel *Channel) Update() error {
 			}
 		}
 		channel.ChannelInfo.MultiKeySize = len(keys)
-		// Clean up status data that exceeds the new key count to prevent index out of range
-		if channel.ChannelInfo.MultiKeyStatusList != nil {
-			for idx := range channel.ChannelInfo.MultiKeyStatusList {
+		// Clean up key-indexed state that exceeds the new key count: stale
+		// entries would silently re-bind to keys added later.
+		for _, table := range []map[int]int{
+			channel.ChannelInfo.MultiKeyStatusList,
+			channel.ChannelInfo.MultiKeyFailStreak,
+		} {
+			for idx := range table {
 				if idx >= channel.ChannelInfo.MultiKeySize {
-					delete(channel.ChannelInfo.MultiKeyStatusList, idx)
+					delete(table, idx)
 				}
+			}
+		}
+		for _, table := range []map[int]int64{
+			channel.ChannelInfo.MultiKeyDisabledTime,
+			channel.ChannelInfo.MultiKeyCooldownUntil,
+		} {
+			for idx := range table {
+				if idx >= channel.ChannelInfo.MultiKeySize {
+					delete(table, idx)
+				}
+			}
+		}
+		for idx := range channel.ChannelInfo.MultiKeyDisabledReason {
+			if idx >= channel.ChannelInfo.MultiKeySize {
+				delete(channel.ChannelInfo.MultiKeyDisabledReason, idx)
+			}
+		}
+		for idx := range channel.ChannelInfo.MultiKeyProxies {
+			if idx >= channel.ChannelInfo.MultiKeySize {
+				delete(channel.ChannelInfo.MultiKeyProxies, idx)
 			}
 		}
 	}

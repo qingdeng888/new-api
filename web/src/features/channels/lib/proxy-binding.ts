@@ -17,7 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import type { ProxyPoolEntry } from '@/features/system-settings/proxy-manage/types'
+import {
+  maskProxyUrl,
+  type ProxyPoolEntry,
+} from '@/features/system-settings/proxy-manage/types'
 
 export const PINNED_POOL_PREFIX = 'pool:url:'
 
@@ -68,12 +71,4 @@ export function isPoolBinding(value: string | undefined): boolean {
 export function proxyEntryLabel(entry: ProxyPoolEntry): string {
   const masked = maskProxyUrl(entry.url)
   return entry.note ? `${entry.note} · ${masked}` : masked
-}
-
-function maskProxyUrl(url: string): string {
-  const at = url.lastIndexOf('@')
-  if (at <= 0) return url
-  const schemeEnd = url.indexOf('://')
-  const prefix = schemeEnd >= 0 ? url.slice(0, schemeEnd + 3) : ''
-  return `${prefix}***@${url.slice(at + 1)}`
 }

@@ -39,6 +39,31 @@ func GetProxyPoolSetting() *ProxyPoolSetting {
 	return &proxyPoolSetting
 }
 
+// Parsed entries are cached because pool bindings resolve on every relayed
+// request; the cache rebuilds lazily whenever the raw document changes.
+var proxyPoolDocumentCache struct {
+	sync.RWMutex
+	raw     string
+	entries []ProxyPoolEntry
+}
+
+func currentProxyPoolEntries() []ProxyPoolEntry {
+	proxyPoolDocumentCache.RLock()
+	if proxyPoolDocumentCache.raw == proxyPoolSetting.Proxies {
+		defer proxyPoolDocumentCache.RUnlock()
+		return proxyPoolDocumentCache.entries
+	}
+	proxyPoolDocumentCache.RUnlock()
+
+	proxyPoolDocumentCache.Lock()
+	defer proxyPoolDocumentCache.Unlock()
+	if proxyPoolDocumentCache.raw != proxyPoolSetting.Proxies {
+		proxyPoolDocumentCache.raw = proxyPoolSetting.Proxies
+		proxyPoolDocumentCache.entries = ParseProxyPoolDocument(proxyPoolSetting.Proxies)
+	}
+	return proxyPoolDocumentCache.entries
+}
+
 // ParseProxyPoolDocument parses the stored document into entries. It accepts
 // the JSON array form and the legacy line-based form.
 func ParseProxyPoolDocument(document string) []ProxyPoolEntry {
@@ -105,13 +130,13 @@ func (e errInvalidProxyPoolEntry) Error() string {
 
 // ProxyPoolAllEntries returns every configured entry, including disabled ones.
 func ProxyPoolAllEntries() []ProxyPoolEntry {
-	return ParseProxyPoolDocument(proxyPoolSetting.Proxies)
+	return currentProxyPoolEntries()
 }
 
 // ProxyPoolEntries returns the URLs of the enabled entries in order.
 func ProxyPoolEntries() []string {
 	var urls []string
-	for _, entry := range ProxyPoolAllEntries() {
+	for _, entry := range currentProxyPoolEntries() {
 		if entry.Enabled && strings.TrimSpace(entry.URL) != "" {
 			urls = append(urls, entry.URL)
 		}
@@ -122,7 +147,7 @@ func ProxyPoolEntries() []string {
 // FindProxyPoolEntry returns the entry with the given URL, if present.
 func FindProxyPoolEntry(proxyURL string) (ProxyPoolEntry, bool) {
 	target := strings.TrimSpace(proxyURL)
-	for _, entry := range ProxyPoolAllEntries() {
+	for _, entry := range currentProxyPoolEntries() {
 		if entry.URL == target {
 			return entry, true
 		}
@@ -149,7 +174,7 @@ type proxyHealthState struct {
 }
 
 var (
-	proxyPoolHealthLock sync.Mutex
+	proxyPoolHealthLock sync.RWMutex
 	proxyPoolHealth     = make(map[string]proxyHealthState)
 )
 
@@ -180,16 +205,42 @@ func MarkProxyTransportResult(proxyURL string, success bool) {
 	if proxyURL == "" {
 		return
 	}
-	proxyPoolHealthLock.Lock()
-	defer proxyPoolHealthLock.Unlock()
 	if success {
+		// Common case: nothing is tracked for this proxy — check under a
+		// shared lock before taking the exclusive one.
+		proxyPoolHealthLock.RLock()
+		_, tracked := proxyPoolHealth[proxyURL]
+		proxyPoolHealthLock.RUnlock()
+		if !tracked {
+			return
+		}
+		proxyPoolHealthLock.Lock()
 		delete(proxyPoolHealth, proxyURL)
+		proxyPoolHealthLock.Unlock()
 		return
 	}
+	proxyPoolHealthLock.Lock()
+	defer proxyPoolHealthLock.Unlock()
 	state := proxyPoolHealth[proxyURL]
 	state.streak++
 	state.until = common.GetTimestamp() + ProxyCooldownSeconds(state.streak)
 	proxyPoolHealth[proxyURL] = state
+}
+
+// PruneProxyPoolHealth drops health entries for proxies that are no longer
+// part of the pool, so the map cannot grow without bound.
+func PruneProxyPoolHealth() {
+	current := make(map[string]bool)
+	for _, entry := range ProxyPoolAllEntries() {
+		current[entry.URL] = true
+	}
+	proxyPoolHealthLock.Lock()
+	defer proxyPoolHealthLock.Unlock()
+	for proxyURL := range proxyPoolHealth {
+		if !current[proxyURL] {
+			delete(proxyPoolHealth, proxyURL)
+		}
+	}
 }
 
 // IsProxyPoolBinding reports whether the binding references the global pool.
@@ -248,6 +299,7 @@ func PickProxyPoolMember(binding string) (string, bool) {
 
 	pinnedIndex := -1
 	if pinnedURL, ok := strings.CutPrefix(binding, ProxyPoolBindingPinnedPrefix); ok {
+		pinnedURL = strings.TrimSpace(pinnedURL)
 		for i, entry := range entries {
 			if entry == pinnedURL {
 				pinnedIndex = i

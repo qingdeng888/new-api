@@ -105,7 +105,12 @@ export function ChannelProxyField({
   }
 
   return (
-    <div {...rest} className='space-y-2' role='group' aria-label={t('Proxy Address')}>
+    <div
+      {...rest}
+      className='space-y-2'
+      role='group'
+      aria-label={t('Proxy Address')}
+    >
       <Select
         value={mode}
         onValueChange={handleModeChange}

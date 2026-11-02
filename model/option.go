@@ -737,6 +737,10 @@ func handleConfigUpdate(key, value string) bool {
 		configKey: value,
 	}
 	config.UpdateConfigFromMap(cfg, configMap)
+	if configName == "proxy_pool_setting" {
+		// Drop health entries for proxies that left the pool.
+		operation_setting.PruneProxyPoolHealth()
+	}
 
 	// 特定配置的后处理
 	if configName == "performance_setting" {

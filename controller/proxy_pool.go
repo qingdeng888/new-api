@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -90,6 +91,15 @@ func checkProxyConnectivity(urls []string) []proxyConnectivityResult {
 		wg.Add(1)
 		go func(index int, target string) {
 			defer wg.Done()
+			defer func() {
+				// gin's recovery middleware does not cover spawned goroutines.
+				if r := recover(); r != nil {
+					results[index] = proxyConnectivityResult{
+						URL:   target,
+						Error: fmt.Sprintf("proxy check panicked: %v", r),
+					}
+				}
+			}()
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 			results[index] = probeProxy(target)

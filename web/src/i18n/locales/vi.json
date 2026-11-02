@@ -7398,7 +7398,6 @@
     "Global proxy pool (pinned #{{index}})": "Proxy pool toàn cục (cố định #{{index}})",
     "Pool member number": "Số thứ tự thành viên pool",
     "1-based position in the global proxy pool": "Vị trí trong pool toàn cục (bắt đầu từ 1)",
-    "Uses the proxies from System Settings → Request policies → Channel health. Failing proxies cool down and traffic transfers automatically.": "Dùng proxy từ Cài đặt hệ thống → Chính sách yêu cầu → Sức khỏe kênh. Proxy lỗi sẽ tạm nghỉ và lưu lượng tự động chuyển sang proxy khác.",
     "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.": "Yêu cầu xoay vòng ngẫu nhiên giữa các proxy trong Cài đặt hệ thống → Chính sách yêu cầu → Sức khỏe kênh. Proxy lỗi tạm nghỉ và lưu lượng tự chuyển.",
     "Proxy management": "Quản lý proxy",
     "Outbound proxy list for every channel and key. Keys bind to a specific entry or rotate randomly across all enabled entries; failing proxies cool down and transfer automatically.": "Danh sách proxy ra cho mọi kênh và khóa. Khóa có thể gắn với một proxy cụ thể hoặc xoay vòng ngẫu nhiên qua các proxy đang bật; proxy lỗi tạm nghỉ và lưu lượng tự chuyển.",
@@ -7431,6 +7430,13 @@
     "This key still uses a manually entered proxy. Keys may only use a proxy pool entry or no proxy; choose one to continue.": "Khóa này vẫn dùng proxy nhập tay. Khóa chỉ có thể dùng proxy trong pool hoặc không proxy; hãy chọn một mục để tiếp tục.",
     "This key connects directly without any proxy.": "Khóa này kết nối trực tiếp không qua proxy.",
     "Key proxies must use the global proxy pool or direct": "Proxy của khóa phải dùng pool toàn cục hoặc kết nối trực tiếp",
-    "Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically.": "Dùng proxy từ Cài đặt hệ thống → Quản lý proxy. Proxy lỗi tạm nghỉ và lưu lượng tự chuyển."
+    "Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically.": "Dùng proxy từ Cài đặt hệ thống → Quản lý proxy. Proxy lỗi tạm nghỉ và lưu lượng tự chuyển.",
+    "Requests rotate randomly across the enabled proxies in the pool. Failing entries cool down and traffic transfers automatically.": "Yêu cầu xoay vòng ngẫu nhiên qua các proxy đang bật trong pool. Proxy lỗi tạm nghỉ và lưu lượng tự chuyển.",
+    "This channel dials upstream without any proxy.": "Kênh này kết nối thẳng upstream không qua proxy.",
+    "This channel uses no channel-level proxy.": "Kênh này không có proxy cấp kênh.",
+    "HTTP, HTTPS, SOCKS5 and SOCKS5H are supported, with optional user:password credentials. Enter direct to dial without a proxy.": "Hỗ trợ HTTP, HTTPS, SOCKS5, SOCKS5H, có thể kèm user:password. Nhập direct để kết nối trực tiếp.",
+    "Proxy address": "Địa chỉ proxy",
+    "This proxy already exists (entry {{index}})": "Proxy này đã tồn tại (mục {{index}})",
+    "{{count}} entries skipped (duplicate or invalid)": "Đã bỏ qua {{count}} mục (trùng hoặc không hợp lệ)"
   }
 }

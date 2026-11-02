@@ -7398,7 +7398,6 @@
     "Global proxy pool (pinned #{{index}})": "全局代理池（固定第 {{index}} 个）",
     "Pool member number": "池成员序号",
     "1-based position in the global proxy pool": "全局代理池中的位置（从 1 开始）",
-    "Uses the proxies from System Settings → Request policies → Channel health. Failing proxies cool down and traffic transfers automatically.": "使用「系统设置 → 请求策略 → 渠道健康」中配置的代理。失败的代理会进入冷却并自动转移流量。",
     "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.": "请求会在「系统设置 → 请求策略 → 渠道健康」配置的代理间随机轮询。失败的代理进入冷却并自动转移流量。",
     "Proxy management": "代理管理",
     "Outbound proxy list for every channel and key. Keys bind to a specific entry or rotate randomly across all enabled entries; failing proxies cool down and transfer automatically.": "渠道和密钥的出站代理列表。密钥可绑定某个具体代理，或在所有启用的代理间随机轮询；失败的代理会进入冷却并自动转移流量。",
@@ -7431,6 +7430,13 @@
     "This key still uses a manually entered proxy. Keys may only use a proxy pool entry or no proxy; choose one to continue.": "该密钥仍在使用手动填写的代理。密钥只能使用代理池中的代理或无代理，请选择一项后继续。",
     "This key connects directly without any proxy.": "该密钥不使用任何代理，直接连接。",
     "Key proxies must use the global proxy pool or direct": "密钥代理只能使用全局代理池或直连",
-    "Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically.": "使用「系统设置 → 代理管理」中的代理；失败的代理会进入冷却并自动转移流量。"
+    "Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically.": "使用「系统设置 → 代理管理」中的代理；失败的代理会进入冷却并自动转移流量。",
+    "Requests rotate randomly across the enabled proxies in the pool. Failing entries cool down and traffic transfers automatically.": "请求会在池中启用的代理间随机轮询；失败的代理会进入冷却并自动转移流量。",
+    "This channel dials upstream without any proxy.": "该渠道不使用任何代理，直接连接上游。",
+    "This channel uses no channel-level proxy.": "该渠道未设置渠道级代理。",
+    "HTTP, HTTPS, SOCKS5 and SOCKS5H are supported, with optional user:password credentials. Enter direct to dial without a proxy.": "支持 HTTP、HTTPS、SOCKS5、SOCKS5H，可带 user:password 凭据。填 direct 表示直连。",
+    "Proxy address": "代理地址",
+    "This proxy already exists (entry {{index}})": "该代理已存在（第 {{index}} 条）",
+    "{{count}} entries skipped (duplicate or invalid)": "跳过 {{count}} 条（重复或无效）"
   }
 }

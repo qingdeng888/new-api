@@ -7398,7 +7398,6 @@
     "Global proxy pool (pinned #{{index}})": "Global proxy pool (pinned #{{index}})",
     "Pool member number": "Pool member number",
     "1-based position in the global proxy pool": "1-based position in the global proxy pool",
-    "Uses the proxies from System Settings → Request policies → Channel health. Failing proxies cool down and traffic transfers automatically.": "Uses the proxies from System Settings → Request policies → Channel health. Failing proxies cool down and traffic transfers automatically.",
     "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.": "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.",
     "Proxy management": "Proxy management",
     "Outbound proxy list for every channel and key. Keys bind to a specific entry or rotate randomly across all enabled entries; failing proxies cool down and transfer automatically.": "Outbound proxy list for every channel and key. Keys bind to a specific entry or rotate randomly across all enabled entries; failing proxies cool down and transfer automatically.",
@@ -7431,6 +7430,13 @@
     "This key still uses a manually entered proxy. Keys may only use a proxy pool entry or no proxy; choose one to continue.": "This key still uses a manually entered proxy. Keys may only use a proxy pool entry or no proxy; choose one to continue.",
     "This key connects directly without any proxy.": "This key connects directly without any proxy.",
     "Key proxies must use the global proxy pool or direct": "Key proxies must use the global proxy pool or direct",
-    "Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically.": "Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically."
+    "Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically.": "Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically.",
+    "Requests rotate randomly across the enabled proxies in the pool. Failing entries cool down and traffic transfers automatically.": "Requests rotate randomly across the enabled proxies in the pool. Failing entries cool down and traffic transfers automatically.",
+    "This channel dials upstream without any proxy.": "This channel dials upstream without any proxy.",
+    "This channel uses no channel-level proxy.": "This channel uses no channel-level proxy.",
+    "HTTP, HTTPS, SOCKS5 and SOCKS5H are supported, with optional user:password credentials. Enter direct to dial without a proxy.": "HTTP, HTTPS, SOCKS5 and SOCKS5H are supported, with optional user:password credentials. Enter direct to dial without a proxy.",
+    "Proxy address": "Proxy address",
+    "This proxy already exists (entry {{index}})": "This proxy already exists (entry {{index}})",
+    "{{count}} entries skipped (duplicate or invalid)": "{{count}} entries skipped (duplicate or invalid)"
   }
 }

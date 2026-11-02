@@ -7398,7 +7398,6 @@
     "Global proxy pool (pinned #{{index}})": "Pool de proxy global (épinglé #{{index}})",
     "Pool member number": "Numéro du membre du pool",
     "1-based position in the global proxy pool": "Position dans le pool global (à partir de 1)",
-    "Uses the proxies from System Settings → Request policies → Channel health. Failing proxies cool down and traffic transfers automatically.": "Utilise les proxies de Paramètres système → Politiques de requête → Santé des canaux. Les proxies défaillants refroidissent et le trafic bascule automatiquement.",
     "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.": "Les requêtes alternent aléatoirement entre les proxies configurés dans Paramètres système → Politiques de requête → Santé des canaux. Les entrées défaillantes refroidissent et le trafic bascule.",
     "Proxy management": "Gestion des proxies",
     "Outbound proxy list for every channel and key. Keys bind to a specific entry or rotate randomly across all enabled entries; failing proxies cool down and transfer automatically.": "Liste des proxies sortants pour chaque canal et clé. Les clés se lient à une entrée précise ou alternent aléatoirement parmi toutes les entrées actives ; les proxies défaillants refroidissent et le trafic bascule automatiquement.",
@@ -7431,6 +7430,13 @@
     "This key still uses a manually entered proxy. Keys may only use a proxy pool entry or no proxy; choose one to continue.": "Cette clé utilise encore un proxy saisi manuellement. Les clés ne peuvent utiliser qu’une entrée du pool ou aucun proxy ; choisissez une option pour continuer.",
     "This key connects directly without any proxy.": "Cette clé se connecte directement sans proxy.",
     "Key proxies must use the global proxy pool or direct": "Les proxies des clés doivent provenir du pool global ou être directs",
-    "Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically.": "Utilise les proxies de Paramètres système → Gestion des proxies. Les proxies défaillants refroidissent et le trafic bascule automatiquement."
+    "Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically.": "Utilise les proxies de Paramètres système → Gestion des proxies. Les proxies défaillants refroidissent et le trafic bascule automatiquement.",
+    "Requests rotate randomly across the enabled proxies in the pool. Failing entries cool down and traffic transfers automatically.": "Les requêtes alternent aléatoirement entre les proxies actifs du pool. Les entrées défaillantes refroidissent et le trafic bascule automatiquement.",
+    "This channel dials upstream without any proxy.": "Ce canal se connecte à l’amont sans proxy.",
+    "This channel uses no channel-level proxy.": "Ce canal n’a pas de proxy au niveau du canal.",
+    "HTTP, HTTPS, SOCKS5 and SOCKS5H are supported, with optional user:password credentials. Enter direct to dial without a proxy.": "HTTP, HTTPS, SOCKS5 et SOCKS5H sont pris en charge, avec identifiants user:motdepasse optionnels. Saisissez direct pour une connexion sans proxy.",
+    "Proxy address": "Adresse du proxy",
+    "This proxy already exists (entry {{index}})": "Ce proxy existe déjà (entrée {{index}})",
+    "{{count}} entries skipped (duplicate or invalid)": "{{count}} entrées ignorées (doublon ou invalide)"
   }
 }

@@ -7398,7 +7398,6 @@
     "Global proxy pool (pinned #{{index}})": "Глобальный пул прокси (закреплён #{{index}})",
     "Pool member number": "Номер участника пула",
     "1-based position in the global proxy pool": "Позиция в глобальном пуле (с 1)",
-    "Uses the proxies from System Settings → Request policies → Channel health. Failing proxies cool down and traffic transfers automatically.": "Использует прокси из Настройки системы → Политики запросов → Состояние каналов. Сбойные прокси уходят в охлаждение, трафик переключается автоматически.",
     "Requests rotate randomly across the proxies configured in System Settings → Request policies → Channel health. Failing entries cool down and traffic transfers automatically.": "Запросы случайно распределяются по прокси из Настройки системы → Политики запросов → Состояние каналов. Сбойные прокси уходят в охлаждение, трафик переключается автоматически.",
     "Proxy management": "Управление прокси",
     "Outbound proxy list for every channel and key. Keys bind to a specific entry or rotate randomly across all enabled entries; failing proxies cool down and transfer automatically.": "Список исходящих прокси для каналов и ключей. Ключ привязывается к конкретному прокси или случайно распределяется по всем включённым; сбойные прокси уходят в охлаждение, трафик переключается автоматически.",
@@ -7431,6 +7430,13 @@
     "This key still uses a manually entered proxy. Keys may only use a proxy pool entry or no proxy; choose one to continue.": "Этот ключ использует прокси, введённый вручную. Ключи могут использовать только прокси из пула или без прокси; выберите вариант, чтобы продолжить.",
     "This key connects directly without any proxy.": "Этот ключ подключается напрямую без прокси.",
     "Key proxies must use the global proxy pool or direct": "Прокси ключей должны быть из глобального пула или прямыми",
-    "Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically.": "Использует прокси из Настройки системы → Управление прокси. Сбойные прокси уходят в охлаждение, трафик переключается автоматически."
+    "Uses the proxies from System Settings → Proxy management. Failing proxies cool down and traffic transfers automatically.": "Использует прокси из Настройки системы → Управление прокси. Сбойные прокси уходят в охлаждение, трафик переключается автоматически.",
+    "Requests rotate randomly across the enabled proxies in the pool. Failing entries cool down and traffic transfers automatically.": "Запросы случайно распределяются по включённым прокси пула. Сбойные прокси уходят в охлаждение, трафик переключается автоматически.",
+    "This channel dials upstream without any proxy.": "Этот канал подключается к upstream без прокси.",
+    "This channel uses no channel-level proxy.": "Для этого канала прокси на уровне канала не задан.",
+    "HTTP, HTTPS, SOCKS5 and SOCKS5H are supported, with optional user:password credentials. Enter direct to dial without a proxy.": "Поддерживаются HTTP, HTTPS, SOCKS5 и SOCKS5H, при необходимости с учётными данными user:password. Введите direct для прямого подключения.",
+    "Proxy address": "Адрес прокси",
+    "This proxy already exists (entry {{index}})": "Такой прокси уже есть (запись {{index}})",
+    "{{count}} entries skipped (duplicate or invalid)": "Пропущено записей: {{count}} (дубликаты или недопустимые)"
   }
 }

@@ -28,9 +28,10 @@ import type { ProxyPoolEntry } from '../types'
 
 export const PROXY_POOL_QUERY_KEY = ['proxy-pool', 'entries']
 
-export function useProxyPool() {
+export function useProxyPool(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: PROXY_POOL_QUERY_KEY,
+    enabled: options?.enabled ?? true,
     queryFn: async () => {
       const res = requireServerSuccess(await getProxyPool())
       return res.data ?? []

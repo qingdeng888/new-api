@@ -18,6 +18,7 @@ import (
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relaydto "github.com/QuantumNous/new-api/relaykit/dto"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/samber/lo"
@@ -263,7 +264,7 @@ func updateBatchTasks(ctx context.Context, adaptor BatchTaskPollingAdaptor, chan
 		}
 		return err
 	}
-	proxy := ch.GetSetting().Proxy
+	proxy := ch.GetResolvedProxy()
 	baseURL := ch.GetBaseURL()
 	if baseURL == "" {
 		baseURL = constant.GetChannelBaseURL(ch.Type)
@@ -458,7 +459,7 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 		ChannelType:     cacheGetChannel.Type,
 		ChannelId:       cacheGetChannel.Id,
 		ChannelBaseUrl:  cacheGetChannel.GetBaseURL(),
-		ChannelSetting:  cacheGetChannel.GetSetting(),
+		ChannelSetting:  resolveChannelSetting(cacheGetChannel),
 		HeadersOverride: cacheGetChannel.GetHeaderOverride(),
 	}
 	info.ApiKey = cacheGetChannel.Key
@@ -493,7 +494,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	if ch.GetBaseURL() != "" {
 		baseURL = ch.GetBaseURL()
 	}
-	proxy := ch.GetSetting().Proxy
+	proxy := ch.GetResolvedProxy()
 
 	task := taskM[taskId]
 	if task == nil {
@@ -838,4 +839,13 @@ func failTasksFromPoll(ctx context.Context, adaptor TaskPollingAdaptor, tasks []
 		}
 	}
 	return firstErr
+}
+
+// resolveChannelSetting returns the channel settings with the outbound proxy
+// binding resolved to a concrete pool member, so background polling traffic
+// follows the same proxy rules as relayed requests.
+func resolveChannelSetting(ch *model.Channel) relaydto.ChannelSettings {
+	setting := ch.GetSetting()
+	setting.Proxy = ch.GetResolvedProxy()
+	return setting
 }

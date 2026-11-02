@@ -95,7 +95,10 @@ export function MultiKeyManageDialog({
   const { currentRow } = useChannels()
   const queryClient = useQueryClient()
   const currentUser = useAuthStore((s) => s.auth.user)
-  const { data: poolEntries = [] } = useProxyPool()
+  const { data: poolEntries = [] } = useProxyPool({
+    enabled: open && !!currentRow,
+  })
+
   const canEditSensitive = hasPermission(
     currentUser,
     ADMIN_PERMISSION_RESOURCES.CHANNEL,
@@ -288,8 +291,24 @@ export function MultiKeyManageDialog({
       setEditorBinding(target ? buildPinnedPoolBinding(target) : '')
       return
     }
+    if (mode === 'legacy') {
+      // Selecting the legacy entry is a no-op; the user must migrate.
+      return
+    }
     setEditorBinding(buildRandomPoolBinding())
   }
+
+  // The pinned entry is only offered when the pool has something to pin to.
+  const editorModeOptions = [
+    {
+      value: 'direct',
+      label: t('No proxy (direct connection)'),
+    },
+    { value: 'pool-random', label: t('Global proxy pool (random)') },
+    ...(poolEntries.length > 0
+      ? [{ value: 'pool-pinned', label: t('Global proxy pool (pinned)') }]
+      : []),
+  ]
 
   const describeProxyBinding = (value: string | undefined) => {
     if (!value) return null
@@ -821,9 +840,10 @@ export function MultiKeyManageDialog({
           value={editorMode}
           onValueChange={handleEditorModeChange}
           items={[
-            { value: 'manual', label: t('Manual proxy address') },
-            { value: 'pool-random', label: t('Global proxy pool (random)') },
-            { value: 'pool-pinned', label: t('Global proxy pool (pinned)') },
+            ...editorModeOptions,
+            ...(editorMode === 'legacy'
+              ? [{ value: 'legacy', label: t('Legacy manual proxy') }]
+              : []),
           ]}
         >
           <SelectTrigger className='w-full sm:w-56'>
@@ -831,20 +851,16 @@ export function MultiKeyManageDialog({
           </SelectTrigger>
           <SelectContent alignItemWithTrigger={false}>
             <SelectGroup>
-              <SelectItem value='direct'>
-                {t('No proxy (direct connection)')}
-              </SelectItem>
-              {editorMode === 'legacy' && (
-                <SelectItem value='legacy' disabled>
-                  {t('Legacy manual proxy')}
+              {[
+                ...editorModeOptions,
+                ...(editorMode === 'legacy'
+                  ? [{ value: 'legacy', label: t('Legacy manual proxy') }]
+                  : []),
+              ].map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
                 </SelectItem>
-              )}
-              <SelectItem value='pool-random'>
-                {t('Global proxy pool (random)')}
-              </SelectItem>
-              <SelectItem value='pool-pinned'>
-                {t('Global proxy pool (pinned)')}
-              </SelectItem>
+              ))}
             </SelectGroup>
           </SelectContent>
         </Select>

@@ -105,10 +105,13 @@ export function ProxyPoolTable() {
     )
   }
 
-  const persist = (next: ProxyPoolEntry[]) => savePool.mutate(next)
+  const persist = (next: ProxyPoolEntry[]) => {
+    if (savePool.isPending) return
+    savePool.mutate(next)
+  }
 
-  const handleSaveEntry = () => {
-    if (!editor || editorInvalid) return
+  const handleSaveEntry = async () => {
+    if (!editor || editorInvalid || savePool.isPending) return
     const entry: ProxyPoolEntry = {
       url: editor.url.trim(),
       note: editor.note.trim() || undefined,
@@ -120,11 +123,25 @@ export function ProxyPoolTable() {
     } else {
       next[editor.index] = entry
     }
-    persist(next)
-    setEditor(null)
+    // Two entries with the same URL would break row identity and selection.
+    const duplicate = next.findIndex(
+      (item, i) => i !== editor.index && item.url === entry.url
+    )
+    if (duplicate >= 0) {
+      toast.error(
+        t('This proxy already exists (entry {{index}})', {
+          index: duplicate + 1,
+        })
+      )
+      return
+    }
+    const saved = await savePool.mutateAsync(next).catch(() => null)
+    // Keep the editor open with the draft when the backend rejects the entry.
+    if (saved?.success) setEditor(null)
   }
 
   const handleToggle = (index: number, enabled: boolean) => {
+    if (savePool.isPending) return
     const next = entries.map((entry, i) =>
       i === index ? { ...entry, enabled } : entry
     )
@@ -132,7 +149,7 @@ export function ProxyPoolTable() {
   }
 
   const handleDelete = () => {
-    if (deleteIndex === null) return
+    if (deleteIndex === null || savePool.isPending) return
     const removed = entries[deleteIndex]
     persist(entries.filter((_, i) => i !== deleteIndex))
     if (removed) {
@@ -141,11 +158,17 @@ export function ProxyPoolTable() {
         next.delete(removed.url)
         return next
       })
+      setTests((prev) => {
+        const next = { ...prev }
+        delete next[removed.url]
+        return next
+      })
     }
     setDeleteIndex(null)
   }
 
   const handleBulkAdd = () => {
+    if (savePool.isPending) return
     const lines = bulkText
       .split('\n')
       .map((line) => line.trim())
@@ -156,11 +179,13 @@ export function ProxyPoolTable() {
     }
     const existing = new Set(entries.map((entry) => entry.url))
     const additions: ProxyPoolEntry[] = []
+    let skipped = 0
     for (const line of lines) {
       if (
         existing.has(line) ||
         (line !== 'direct' && !isOptionalProxyURL(line))
       ) {
+        skipped++
         continue
       }
       existing.add(line)
@@ -169,6 +194,13 @@ export function ProxyPoolTable() {
     if (additions.length > 0) persist([...entries, ...additions])
     setBulkOpen(false)
     setBulkText('')
+    if (skipped > 0) {
+      toast.info(
+        t('{{count}} entries skipped (duplicate or invalid)', {
+          count: skipped,
+        })
+      )
+    }
   }
 
   // Probes every requested proxy against a fixed public target; the backend
