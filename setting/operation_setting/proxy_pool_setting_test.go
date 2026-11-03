@@ -173,3 +173,14 @@ func TestPickProxyPoolMemberRejectsOtherBindings(t *testing.T) {
 	_, ok = PickProxyPoolMember("pool")
 	assert.False(t, ok)
 }
+
+func TestValidateProxyPoolDocumentRejectsDuplicates(t *testing.T) {
+	_, err := ValidateProxyPoolDocument(
+		`[{"url":"socks5://10.4.0.1:1080","enabled":true},{"url":"socks5://10.4.0.1:1080","note":"same","enabled":true}]`,
+	)
+	assert.Error(t, err)
+
+	// Duplicate detection also applies to the legacy line format.
+	_, err = ValidateProxyPoolDocument("socks5://10.4.0.1:1080\nsocks5://10.4.0.1:1080")
+	assert.Error(t, err)
+}

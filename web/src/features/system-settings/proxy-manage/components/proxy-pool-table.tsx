@@ -133,14 +133,10 @@ export function ProxyPoolTable() {
       note: editor.note.trim() || undefined,
       enabled: editor.enabled,
     }
-    const next = [...entries]
-    if (editor.index === null) {
-      next.push(entry)
-    } else {
-      next[editor.index] = entry
-    }
-    // Two entries with the same URL would break row identity and selection.
-    const duplicate = next.findIndex(
+    // Reject a URL another entry already uses. Checked against the existing
+    // entries (and skipping the edited row) so the draft being saved is not
+    // compared with itself; `editor.index` is null when adding.
+    const duplicate = entries.findIndex(
       (item, i) => i !== editor.index && item.url === entry.url
     )
     if (duplicate >= 0) {
@@ -150,6 +146,12 @@ export function ProxyPoolTable() {
         })
       )
       return
+    }
+    const next = [...entries]
+    if (editor.index === null) {
+      next.push(entry)
+    } else {
+      next[editor.index] = entry
     }
     const saved = await savePool.mutateAsync(next).catch(() => null)
     // Keep the editor open with the draft when the backend rejects the entry.

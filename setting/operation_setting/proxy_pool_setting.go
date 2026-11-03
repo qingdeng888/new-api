@@ -104,11 +104,16 @@ func SerializeProxyPoolDocument(entries []ProxyPoolEntry) string {
 // ValidateProxyPoolDocument rejects documents with a malformed entry.
 func ValidateProxyPoolDocument(document string) ([]ProxyPoolEntry, error) {
 	entries := ParseProxyPoolDocument(document)
+	seen := make(map[string]bool, len(entries))
 	for _, entry := range entries {
 		proxyURL := strings.TrimSpace(entry.URL)
 		if proxyURL == "" {
 			return nil, errInvalidProxyPoolEntry("")
 		}
+		if seen[proxyURL] {
+			return nil, errInvalidProxyPoolEntry("duplicate " + proxyURL)
+		}
+		seen[proxyURL] = true
 		if proxyURL == "direct" {
 			continue
 		}
