@@ -642,11 +642,13 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelName, channel.Name)
 	common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
 	common.SetContextKey(c, constant.ContextKeyChannelCreateTime, channel.CreatedTime)
-	common.SetContextKey(c, constant.ContextKeyChannelSetting, channel.GetSetting())
+	// Parse the setting JSON once per request; it is re-read several times below.
+	channelSettings := channel.GetSetting()
+	common.SetContextKey(c, constant.ContextKeyChannelSetting, channelSettings)
 	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())
 	switch channel.Type {
 	case constant.ChannelTypeTaskPlugin:
-		c.Set("task_plugin_key", channel.GetSetting().TaskPluginKey)
+		c.Set("task_plugin_key", channelSettings.TaskPluginKey)
 	case constant.ChannelTypeNewAPI:
 		// The bound plugin verified above executes; ordinary requests through
 		// the same gateway channel carry no pinned plugin.
@@ -704,7 +706,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	// too, where selection always yields index 0). "pool:" references
 	// resolve to one concrete member per request so failing proxies
 	// transfer the traffic.
-	settings := channel.GetSetting()
+	settings := channelSettings
 	proxyBinding := settings.Proxy
 	if keyProxy := channel.ChannelInfo.MultiKeyProxies[index]; keyProxy != "" {
 		proxyBinding = keyProxy

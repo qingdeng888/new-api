@@ -354,6 +354,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				appconstant.ContextKeyChannelParamOverride, appconstant.ContextKeyChannelHeaderOverride, appconstant.ContextKeyChannelOrganization,
 				appconstant.ContextKeyChannelAutoBan, appconstant.ContextKeyChannelModelMapping, appconstant.ContextKeyChannelStatusCodeMapping,
 				appconstant.ContextKeyChannelIsMultiKey, appconstant.ContextKeyChannelMultiKeyIndex, appconstant.ContextKeyChannelKey, appconstant.ContextKeyChannelBaseUrl,
+				appconstant.ContextKeyChannelProxyBinding,
 				appconstant.ContextKeyUpstreamRequestOrigin,
 			} {
 				if value, ok := c.Get(string(key)); ok {
@@ -569,7 +570,9 @@ func (s *responsesWSSession) restoreConnectionContext(c *gin.Context, model stri
 		!reflect.DeepEqual(channel.GetHeaderOverride(), s.lockedContext[appconstant.ContextKeyChannelHeaderOverride]) {
 		return types.NewErrorWithStatusCode(errors.New("upstream connection settings changed; reconnect required"), types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry())
 	}
-	if previous, ok := s.lockedContext[appconstant.ContextKeyChannelSetting].(dto.ChannelSettings); ok && previous.Proxy != channel.GetSetting().Proxy {
+	// Compare admin-configured proxy bindings, not per-request resolved
+	// members: pool rotation must not force a reconnect.
+	if previousBinding, ok := s.lockedContext[appconstant.ContextKeyChannelProxyBinding].(string); ok && previousBinding != channel.GetSetting().Proxy {
 		return types.NewErrorWithStatusCode(errors.New("upstream proxy changed; reconnect required"), types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry())
 	}
 	// An advanced custom connection was dialed through the route matched for
@@ -602,7 +605,11 @@ func (s *responsesWSSession) restoreConnectionContext(c *gin.Context, model stri
 	for key, value := range s.lockedContext {
 		c.Set(string(key), value)
 	}
-	common.SetContextKey(c, appconstant.ContextKeyChannelSetting, channel.GetSetting())
+	// Refresh settings from the channel but keep the pool binding resolved:
+	// the dial below needs a concrete proxy member, not a "pool" reference.
+	settings := channel.GetSetting()
+	settings.Proxy = channel.GetResolvedProxy()
+	common.SetContextKey(c, appconstant.ContextKeyChannelSetting, settings)
 	common.SetContextKey(c, appconstant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())
 	common.SetContextKey(c, appconstant.ContextKeyChannelParamOverride, channel.GetParamOverride())
 	common.SetContextKey(c, appconstant.ContextKeyChannelModelMapping, channel.GetModelMapping())

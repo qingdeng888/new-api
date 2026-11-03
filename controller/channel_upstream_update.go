@@ -557,6 +557,7 @@ func checkAndPersistChannelUpstreamModelUpdates(
 		if err = channel.UpdateAbilities(nil); err != nil {
 			return true, autoAdded, err
 		}
+		service.EnsureDefaultPricingForModels(channel.GetModels())
 	}
 	return modelsChanged, autoAdded, nil
 }
@@ -1020,6 +1021,7 @@ func applyChannelUpstreamModelUpdates(
 			return addModels, removeModels, remainingModels, remainingRemoveModels, true, err
 		}
 	}
+	service.EnsureDefaultPricingForModels(channel.GetModels())
 	return addModels, removeModels, remainingModels, remainingRemoveModels, modelsChanged, nil
 }
 

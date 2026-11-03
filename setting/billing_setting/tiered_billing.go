@@ -365,3 +365,19 @@ func billingExprSmokeRequests() []billingexpr.RequestInput {
 		},
 	}
 }
+
+// HasModelBillingConfig reports whether the model resolves any configured or
+// built-in price: a per-call price, a token ratio, or a tiered expression.
+func HasModelBillingConfig(modelName string) bool {
+	if _, ok := ratio_setting.GetModelPrice(modelName, false); ok {
+		return true
+	}
+	if _, found, _ := ratio_setting.GetModelRatio(modelName); found {
+		return true
+	}
+	if GetBillingMode(modelName) != BillingModeTieredExpr {
+		return false
+	}
+	expr, ok := GetBillingExpr(modelName)
+	return ok && strings.TrimSpace(expr) != ""
+}

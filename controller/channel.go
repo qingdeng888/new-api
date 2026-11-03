@@ -826,6 +826,12 @@ func AddChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// Make every newly exposed model usable without a manual pricing trip.
+	var poolModels []string
+	for i := range channels {
+		poolModels = append(poolModels, channels[i].GetModels()...)
+	}
+	service.EnsureDefaultPricingForModels(poolModels)
 	createAudit := map[string]any{
 		"name":  addChannelRequest.Channel.Name,
 		"type":  addChannelRequest.Channel.Type,
