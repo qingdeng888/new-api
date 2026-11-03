@@ -16,7 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Loader2, Pencil, Plus, Trash2, Upload, Zap } from 'lucide-react'
+import {
+  Loader2,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Trash2,
+  Upload,
+  Zap,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -59,7 +67,7 @@ type TestState = {
 
 export function ProxyPoolTable() {
   const { t } = useTranslation()
-  const { data: entries = [], isLoading } = useProxyPool()
+  const { data: entries = [], isLoading, refetch } = useProxyPool()
   const savePool = useSaveProxyPool()
   const [editor, setEditor] = useState<EditorState | null>(null)
   const [bulkOpen, setBulkOpen] = useState(false)
@@ -67,6 +75,7 @@ export function ProxyPoolTable() {
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [tests, setTests] = useState<Record<string, TestState>>({})
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   const editorInvalid = useMemo(() => {
     if (!editor) return false
@@ -99,6 +108,17 @@ export function ProxyPoolTable() {
     setSelected(
       checked ? new Set(entries.map((entry) => entry.url)) : new Set()
     )
+  }
+
+  // Re-reads the pool from the server so edits made outside this page (or by
+  // another node) show up without a reload.
+  const refreshEntries = async () => {
+    setIsRefreshing(true)
+    try {
+      await refetch()
+    } finally {
+      setIsRefreshing(false)
+    }
   }
 
   const persist = (next: ProxyPoolEntry[]) => {
@@ -306,6 +326,17 @@ export function ProxyPoolTable() {
           <Button variant='outline' size='sm' onClick={() => setBulkOpen(true)}>
             <Upload className='mr-1.5 h-4 w-4' />
             {t('Bulk add')}
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            disabled={isRefreshing || savePool.isPending}
+            onClick={() => void refreshEntries()}
+          >
+            <RefreshCw
+              className={`mr-1.5 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+            />
+            {t('Refresh')}
           </Button>
           <Button
             variant='outline'

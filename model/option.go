@@ -210,7 +210,9 @@ func loadOptionsFromDatabase() {
 	defer passkeyOptionMutex.Unlock()
 	options, _ := AllOption()
 	passkeyOptions := make(map[string]string)
+	presentKeys := make(map[string]bool, len(options))
 	for _, option := range options {
+		presentKeys[option.Key] = true
 		if IsPasskeyDomainOption(option.Key) {
 			passkeyOptions[option.Key] = option.Value
 			continue
@@ -221,6 +223,29 @@ func loadOptionsFromDatabase() {
 		}
 	}
 	applyPasskeyDomainOptions(passkeyOptions)
+	// A row deleted straight from the database leaves its value cached in
+	// memory forever, because the loop above only visits rows that exist.
+	// Reset options whose row is gone so the console reflects the database.
+	resetOptionsMissingFromDatabase(presentKeys)
+}
+
+// resetOptionsMissingFromDatabase drops cached values for keys whose row no
+// longer exists, restoring each to the value the option map initializes with.
+func resetOptionsMissingFromDatabase(presentKeys map[string]bool) {
+	common.OptionMapRWMutex.Lock()
+	missing := make([]string, 0)
+	for key := range common.OptionMap {
+		if !presentKeys[key] {
+			missing = append(missing, key)
+		}
+	}
+	common.OptionMapRWMutex.Unlock()
+	for _, key := range missing {
+		delete(common.OptionMap, key)
+		if err := updateOptionMap(key, ""); err != nil {
+			common.SysLog(common.LogText("failed to reset deleted option %q: %s", key, err.Error()))
+		}
+	}
 }
 
 func SyncOptions(frequency int) {
