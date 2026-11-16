@@ -73,27 +73,22 @@ func TestDetectNamesEachSupportedClient(t *testing.T) {
 			want:   KindClaudeCode,
 		},
 		{
-			// Without the browser-access header a bare claude-cli user agent is
-			// assumed to be Claude Code: pi-ai always sets that header, so its
-			// absence points at the real CLI.
-			name:   "claude cli without stainless headers",
+			name:   "claude cli without sdk headers",
 			header: http.Header{"User-Agent": {"claude-cli/2.1.251"}},
 			want:   KindClaudeCode,
 		},
 		{
-			// pi-ai with an API key sends its own product name.
-			name:   "deepseek harness with api key",
-			header: http.Header{"User-Agent": {"pi/0.2.2 (linux; node/v24.22.3; x64)"}},
+			// dsh-llm sets this header last on every provider request, model
+			// discovery included, after the client underneath has set its own.
+			name:   "deepseek harness model discovery",
+			header: http.Header{"User-Agent": {"deepseek-harness/0.2.2-rc.1 (+https://github.com/deepseek-ai/deepseek-harness)"}},
 			want:   KindDeepSeekHarness,
 		},
 		{
-			// On OAuth credentials pi-ai borrows the Claude Code name, but asks
-			// for browser access and sends no stainless headers.
-			name: "deepseek harness with oauth credential",
+			name: "deepseek harness over a claude-cli base client",
 			header: http.Header{
-				"User-Agent": {"claude-cli/2.1.251"},
+				"User-Agent": {"deepseek-harness/0.2.2-rc.1 (+https://github.com/deepseek-ai/deepseek-harness)"},
 				"X-App":      {"cli"},
-				"Anthropic-Dangerous-Direct-Browser-Access": {"true"},
 			},
 			want: KindDeepSeekHarness,
 		},

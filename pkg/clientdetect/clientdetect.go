@@ -93,25 +93,20 @@ func FormatList(kinds []Kind) string {
 // Detect names the client behind a request. It reports false for a request whose
 // headers match no supported client, including one whose headers were rewritten
 // on the way in.
-//
-// Order matters. On OAuth credentials pi-ai presents itself as Claude Code
-// ("claude-cli/..." plus "x-app: cli"), so DeepSeek Harness is decided before
-// Claude Code and expects the stainless headers the official Anthropic SDK adds.
 func Detect(h http.Header) (Kind, bool) {
 	if h == nil {
 		return "", false
 	}
 	userAgent := strings.ToLower(strings.TrimSpace(h.Get("User-Agent")))
 
-	// pi-ai sends its own product name whenever the request carries an API key.
-	if userAgent == "pi" || strings.HasPrefix(userAgent, "pi/") {
+	// DeepSeek Harness sends "deepseek-harness/<version> (+<repository>)" on
+	// every provider request, model discovery included. Its adapters set that
+	// header last, over whatever the underlying client would send, so the
+	// product name is always the harness itself.
+	if strings.HasPrefix(userAgent, "deepseek-harness/") || userAgent == "deepseek-harness" {
 		return KindDeepSeekHarness, true
 	}
-	// The OAuth form of the same client borrows the Claude Code name but asks
-	// for browser access and skips the stainless instrumentation.
-	if isClaudeCLI(userAgent) && requestsDirectBrowserAccess(h) && !hasStainlessHeader(h) {
-		return KindDeepSeekHarness, true
-	}
+
 	if isClaudeCLI(userAgent) {
 		return KindClaudeCode, true
 	}
@@ -145,23 +140,4 @@ func Allowed(allowed []Kind, h http.Header) (Kind, bool) {
 // isClaudeCLI matches the "claude-cli/<version> (external, cli)" user agent.
 func isClaudeCLI(userAgent string) bool {
 	return userAgent == "claude-cli" || strings.HasPrefix(userAgent, "claude-cli/")
-}
-
-// requestsDirectBrowserAccess matches the header pi-ai sets on every Anthropic
-// request because it runs the SDK in browser mode.
-func requestsDirectBrowserAccess(h http.Header) bool {
-	return strings.EqualFold(strings.TrimSpace(h.Get("anthropic-dangerous-direct-browser-access")), "true")
-}
-
-// hasStainlessHeader reports whether the official Anthropic SDK instrumentation
-// headers are present: x-stainless-* names the SDK, its runtime and its retry
-// state, and only a real SDK request carries them.
-func hasStainlessHeader(h http.Header) bool {
-	const prefix = "x-stainless-"
-	for name := range h {
-		if len(name) >= len(prefix) && strings.EqualFold(name[:len(prefix)], prefix) {
-			return true
-		}
-	}
-	return false
 }
