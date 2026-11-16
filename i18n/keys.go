@@ -15,6 +15,7 @@ const (
 
 	MsgAuthClientIPUnresolved     = "auth.client_ip_unresolved"
 	MsgAuthTokenIPNotAllowed      = "auth.token_ip_not_allowed"
+	MsgAuthTokenClientNotAllowed  = "auth.token_client_not_allowed"
 	MsgAuthTokenGroupForbidden    = "auth.token_group_forbidden"
 	MsgAuthTokenGroupDeprecated   = "auth.token_group_deprecated"
 	MsgAuthChannelSelectForbidden = "auth.channel_select_forbidden"

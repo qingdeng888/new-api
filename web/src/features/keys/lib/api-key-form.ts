@@ -39,6 +39,7 @@ export function getApiKeyFormSchema(t: TFunction, maxAutoGroups = 5) {
       expired_time: z.date().nullable(),
       unlimited_quota: z.boolean(),
       model_limits: z.array(z.string()),
+      client_limits: z.array(z.string()),
       allow_ips: z.string().optional(),
       allow_user_quota_query: z.boolean(),
       group: z.string().optional(),
@@ -110,6 +111,7 @@ export const API_KEY_FORM_DEFAULT_VALUES: ApiKeyFormValues = {
   expired_time: null,
   unlimited_quota: true,
   model_limits: [],
+  client_limits: [],
   allow_ips: '',
   allow_user_quota_query: true,
   group: DEFAULT_GROUP,
@@ -152,6 +154,10 @@ export function transformFormDataToPayload(
     unlimited_quota: data.unlimited_quota,
     model_limits_enabled: data.model_limits.length > 0,
     model_limits: data.model_limits.join(','),
+    // An empty selection means no client restriction, so the enabled flag
+    // always follows the list.
+    client_limits_enabled: data.client_limits.length > 0,
+    client_limits: data.client_limits.join(','),
     allow_ips: data.allow_ips || '',
     allow_user_quota_query: data.allow_user_quota_query,
     group: data.group || '',
@@ -188,6 +194,9 @@ export function transformApiKeyToFormDefaults(
     unlimited_quota: apiKey.unlimited_quota,
     model_limits: apiKey.model_limits
       ? apiKey.model_limits.split(',').filter(Boolean)
+      : [],
+    client_limits: apiKey.client_limits
+      ? apiKey.client_limits.split(',').filter(Boolean)
       : [],
     allow_ips: apiKey.allow_ips || '',
     allow_user_quota_query: !!apiKey.allow_user_quota_query,

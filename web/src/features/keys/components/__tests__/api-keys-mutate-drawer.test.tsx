@@ -301,6 +301,8 @@ describe('API key expiry across editing sessions', () => {
         auto_groups: [],
         cross_group_retry: false,
         model_limits_enabled: false,
+  client_limits_enabled: false,
+  client_limits: '',
         model_limits: '',
         allow_ips: '',
         allow_user_quota_query: true,
@@ -422,5 +424,62 @@ describe('API keys mutate drawer user quota query switch', () => {
     fireEvent.click(findButton('Save changes', true))
     await waitFor(() => expect(createdPayloads).toHaveLength(1))
     expect(createdPayloads[0]?.allow_user_quota_query).toBe(false)
+  })
+})
+
+describe('API keys mutate drawer client restrictions', () => {
+  function clientRestrictionsInput(): HTMLInputElement {
+    const label = [...document.querySelectorAll<HTMLLabelElement>('label')].find(
+      (candidate) => candidate.textContent?.trim() === 'Client Restrictions'
+    )
+    if (!label) {
+      throw new Error('Expected the Client Restrictions label')
+    }
+    const input = label
+      .closest('[data-slot="form-item"]')
+      ?.querySelector<HTMLInputElement>('input')
+    if (!input) {
+      throw new Error('Expected the Client Restrictions combobox input')
+    }
+    return input
+  }
+
+  test('creates an unrestricted key when no client is picked', async () => {
+    const createdPayloads: Array<Record<string, unknown>> = []
+    installApiFixtures(createdPayloads)
+    await renderCreateDrawer()
+
+    fireEvent.click(findButton('Advanced Settings', true))
+    await screen.findByText('Client Restrictions')
+    expect(clientRestrictionsInput()).toBeInTheDocument()
+    expect(clientRestrictionsInput().value).toBe('')
+
+    changeInput(getControlByLabel('Name'), 'all-clients')
+    fireEvent.click(findButton('Save changes', true))
+    await waitFor(() => expect(createdPayloads).toHaveLength(1))
+    expect(createdPayloads[0]?.client_limits_enabled).toBe(false)
+    expect(createdPayloads[0]?.client_limits).toBe('')
+  })
+
+  test('sends the picked clients and turns the restriction on', async () => {
+    const createdPayloads: Array<Record<string, unknown>> = []
+    installApiFixtures(createdPayloads)
+    await renderCreateDrawer()
+
+    fireEvent.click(findButton('Advanced Settings', true))
+    for (const client of ['Codex', 'Hermes']) {
+      const input = clientRestrictionsInput()
+      fireEvent.click(input)
+      fireEvent.change(input, { target: { value: client } })
+      // The popup opens on the first navigation key, not on the click.
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      fireEvent.click(await screen.findByRole('option', { name: client }))
+    }
+
+    changeInput(getControlByLabel('Name'), 'two-clients')
+    fireEvent.click(findButton('Save changes', true))
+    await waitFor(() => expect(createdPayloads).toHaveLength(1))
+    expect(createdPayloads[0]?.client_limits_enabled).toBe(true)
+    expect(createdPayloads[0]?.client_limits).toBe('codex,hermes')
   })
 })

@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/clientdetect"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
@@ -602,6 +603,23 @@ func TokenAuth() func(c *gin.Context) {
 				return
 			}
 			logger.LogDebug(c, "Client IP %s passed the token IP restrictions check", clientIp)
+		}
+
+		if token.ClientLimitsEnabled {
+			client, allowed := clientdetect.Allowed(clientdetect.ParseList(token.ClientLimits), c.Request.Header)
+			if !allowed {
+				// The user agent is the only way to tell these clients apart, so
+				// record what arrived: a client that changed its headers looks
+				// exactly like a blocked one from the caller's side.
+				userAgent := c.Request.UserAgent()
+				if len(userAgent) > 256 {
+					userAgent = userAgent[:256]
+				}
+				logger.LogDebug(c, "Token client restriction rejected user agent %q (client=%s, allowed=%s)",
+					userAgent, client, token.ClientLimits)
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgAuthTokenClientNotAllowed), types.ErrorCodeAccessDenied)
+				return
+			}
 		}
 
 		userCache, err := model.GetUserCache(token.UserId)

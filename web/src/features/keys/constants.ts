@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type StatusBadgeProps } from '@/components/status-badge'
+import type { StatusBadgeProps } from '@/components/status-badge'
 
 // ============================================================================
 // API Key Status Configuration
@@ -98,3 +98,18 @@ export const SUCCESS_MESSAGES = {
   API_KEY_ENABLED: 'API Key enabled successfully',
   API_KEY_DISABLED: 'API Key disabled successfully',
 } as const
+
+// ============================================================================
+// Client Restrictions
+// The values must match the identifiers the backend reports for a token; the
+// labels are i18n keys, so resolve them with t(label) where they are rendered.
+// ============================================================================
+
+export const API_KEY_CLIENTS = [
+  { value: 'codex', label: 'Codex' },
+  { value: 'claude_code', label: 'Claude Code' },
+  { value: 'deepseek_harness', label: 'DeepSeek Harness' },
+  { value: 'hermes', label: 'Hermes' },
+] as const
+
+export type ApiKeyClientValue = (typeof API_KEY_CLIENTS)[number]['value']

@@ -913,6 +913,10 @@ export const STATIC_I18N_KEYS = [
   'Verification method',
   'Admin permissions updated',
   'Provider ID',
+  // Client restriction labels handed to t() from API_KEY_CLIENTS.
+  'Claude Code',
+  'DeepSeek Harness',
+  'Hermes',
   // Channel priority ordering API errors.
   'Channel priorities changed. Refresh and try again.',
   'Invalid channel priority move',

@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/clientdetect"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -126,6 +127,33 @@ func setTokenAutoGroups(c *gin.Context, token *model.Token, groups []string) boo
 		common.ApiError(c, err)
 		return false
 	}
+	return true
+}
+
+// applyTokenClientLimits validates and stores the clients a token may be used
+// from. A restriction that names no supported client would refuse every
+// request, so it is rejected instead of saved.
+func applyTokenClientLimits(c *gin.Context, token *model.Token) bool {
+	if !token.ClientLimitsEnabled {
+		token.ClientLimits = ""
+		return true
+	}
+	for part := range strings.SplitSeq(token.ClientLimits, ",") {
+		value := strings.TrimSpace(part)
+		if value == "" {
+			continue
+		}
+		if !clientdetect.IsKnown(value) {
+			common.ApiErrorT(c, "Unsupported client: {{client}}", map[string]any{"client": value})
+			return false
+		}
+	}
+	allowed := clientdetect.ParseList(token.ClientLimits)
+	if len(allowed) == 0 {
+		common.ApiErrorT(c, "Select at least one client, or turn the client restriction off")
+		return false
+	}
+	token.ClientLimits = clientdetect.FormatList(allowed)
 	return true
 }
 
@@ -310,6 +338,9 @@ func AddToken(c *gin.Context) {
 	}
 	params := tokenAuditParams(c)
 	params["name"] = token.Name
+	if !applyTokenClientLimits(c, &token) {
+		return
+	}
 	// 非无限额度时，检查额度值是否超出有效范围
 	if !token.UnlimitedQuota {
 		if token.RemainQuota < 0 {
@@ -348,20 +379,22 @@ func AddToken(c *gin.Context) {
 		return
 	}
 	cleanToken := model.Token{
-		UserId:             c.GetInt("id"),
-		Name:               token.Name,
-		Key:                key,
-		CreatedTime:        common.GetTimestamp(),
-		AccessedTime:       common.GetTimestamp(),
-		ExpiredTime:        token.ExpiredTime,
-		RemainQuota:        token.RemainQuota,
-		UnlimitedQuota:     token.UnlimitedQuota,
-		ModelLimitsEnabled: token.ModelLimitsEnabled,
-		ModelLimits:        token.ModelLimits,
-		AllowIps:           token.AllowIps,
-		Group:              token.Group,
-		CrossGroupRetry:    token.CrossGroupRetry,
-		AutoGroups:         token.AutoGroups,
+		UserId:              c.GetInt("id"),
+		Name:                token.Name,
+		Key:                 key,
+		CreatedTime:         common.GetTimestamp(),
+		AccessedTime:        common.GetTimestamp(),
+		ExpiredTime:         token.ExpiredTime,
+		RemainQuota:         token.RemainQuota,
+		UnlimitedQuota:      token.UnlimitedQuota,
+		ModelLimitsEnabled:  token.ModelLimitsEnabled,
+		ModelLimits:         token.ModelLimits,
+		ClientLimitsEnabled: token.ClientLimitsEnabled,
+		ClientLimits:        token.ClientLimits,
+		AllowIps:            token.AllowIps,
+		Group:               token.Group,
+		CrossGroupRetry:     token.CrossGroupRetry,
+		AutoGroups:          token.AutoGroups,
 	}
 	cleanToken.AllowUserQuotaQuery = request.AllowUserQuotaQuery == nil || *request.AllowUserQuotaQuery
 	err = cleanToken.Insert()
@@ -428,6 +461,9 @@ func UpdateToken(c *gin.Context) {
 			return
 		}
 	}
+	if !applyTokenClientLimits(c, &token) {
+		return
+	}
 	cleanToken, err := model.GetTokenByIds(token.Id, userId)
 	if err != nil {
 		common.ApiError(c, err)
@@ -455,6 +491,8 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.UnlimitedQuota = token.UnlimitedQuota
 		cleanToken.ModelLimitsEnabled = token.ModelLimitsEnabled
 		cleanToken.ModelLimits = token.ModelLimits
+		cleanToken.ClientLimitsEnabled = token.ClientLimitsEnabled
+		cleanToken.ClientLimits = token.ClientLimits
 		cleanToken.AllowIps = token.AllowIps
 		if request.AllowUserQuotaQuery != nil {
 			cleanToken.AllowUserQuotaQuery = *request.AllowUserQuotaQuery
@@ -490,6 +528,8 @@ func UpdateToken(c *gin.Context) {
 			{"unlimited_quota", previous.UnlimitedQuota != cleanToken.UnlimitedQuota},
 			{"model_limits_enabled", previous.ModelLimitsEnabled != cleanToken.ModelLimitsEnabled},
 			{"model_limits", previous.ModelLimits != cleanToken.ModelLimits},
+			{"client_limits", previous.ClientLimitsEnabled != cleanToken.ClientLimitsEnabled ||
+				previous.ClientLimits != cleanToken.ClientLimits},
 			{"allow_ips", (previous.AllowIps == nil) != (cleanToken.AllowIps == nil) ||
 				(previous.AllowIps != nil && cleanToken.AllowIps != nil && *previous.AllowIps != *cleanToken.AllowIps)},
 			{"allow_user_quota_query", previous.AllowUserQuotaQuery != cleanToken.AllowUserQuotaQuery},

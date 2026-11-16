@@ -79,7 +79,7 @@ import {
   getApiKey,
   getTokenAutoGroups,
 } from '../api'
-import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
+import { API_KEY_CLIENTS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
   getApiKeyFormSchema,
   type ApiKeyFormValues,
@@ -162,6 +162,10 @@ export function ApiKeysMutateDrawer({
   })
 
   const models = modelsData?.data || []
+  const clientOptions = useMemo(
+    () => API_KEY_CLIENTS.map((client) => ({ ...client, label: t(client.label) })),
+    [t]
+  )
   const groups = useMemo<ApiKeyGroupOption[]>(
     () =>
       Object.entries(groupsData?.data || {}).map(([key, info]) => ({
@@ -714,6 +718,30 @@ export function ApiKeysMutateDrawer({
                           </FormControl>
                           <FormDescription>
                             {t('Limit which models can be used with this key')}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name='client_limits'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Client Restrictions')}</FormLabel>
+                          <FormControl>
+                            <MultiSelect
+                              options={clientOptions}
+                              selected={field.value}
+                              onChange={field.onChange}
+                              placeholder={t('Select clients (empty for all)')}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'Limit which clients can use this key. An unlisted client is refused, including one this gateway cannot identify.'
+                            )}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>

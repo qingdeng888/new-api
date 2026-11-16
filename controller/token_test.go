@@ -346,6 +346,8 @@ func runTokenMigrationCompatibilityTest(t *testing.T, db *gorm.DB, dialect strin
 	}
 
 	migrateTokenControllerTestDB(t, db)
+	// Startup runs AutoMigrate on every boot, so a second pass must be a no-op.
+	migrateTokenControllerTestDB(t, db)
 
 	if got := getTokenKeyColumnType(t, db, dialect); got != "varchar(128)" {
 		t.Fatalf("expected migrated key column type varchar(128), got %q", got)
@@ -372,6 +374,10 @@ func runTokenMigrationCompatibilityTest(t *testing.T, db *gorm.DB, dialect strin
 	}
 	require.True(t, db.Migrator().HasColumn(&model.Token{}, "allow_user_quota_query"))
 	assert.False(t, migratedToken.AllowUserQuotaQuery, "tokens created before the upgrade keep user quota queries off")
+	require.True(t, db.Migrator().HasColumn(&model.Token{}, "client_limits_enabled"))
+	require.True(t, db.Migrator().HasColumn(&model.Token{}, "client_limits"))
+	assert.False(t, migratedToken.ClientLimitsEnabled, "tokens created before the upgrade start without a client restriction")
+	assert.Empty(t, migratedToken.ClientLimits)
 
 	inserted := model.Token{
 		UserId:             8,
@@ -1014,4 +1020,84 @@ func verifyAPITokenAudit(t *testing.T) {
 		require.NoError(t, model.DB.Model(&model.Token{}).Where("name = ?", "audit-down").Count(&count).Error)
 		assert.EqualValues(t, 1, count)
 	})
+}
+
+// A token narrowed to some clients must refuse every request when it names
+// none, so the controller rejects that state instead of saving it.
+func TestUpdateTokenRejectsClientRestrictionNamingNoClient(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	token := seedToken(t, db, 1, "client-restricted", "clientrestrict1234")
+
+	for _, tc := range []struct {
+		name   string
+		limits string
+		want   string
+	}{
+		{name: "empty list", limits: "", want: "Select at least one client"},
+		{name: "only separators", limits: " , ,", want: "Select at least one client"},
+		{name: "unsupported name", limits: "codex,not_a_client", want: "Unsupported client: not_a_client"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/", map[string]any{
+				"id": token.Id, "name": token.Name, "expired_time": -1, "remain_quota": 100,
+				"unlimited_quota": true, "group": "default",
+				"client_limits_enabled": true, "client_limits": tc.limits,
+			}, 1)
+			UpdateToken(ctx)
+
+			response := decodeAPIResponse(t, recorder)
+			assert.False(t, response.Success)
+			assert.Contains(t, response.Message, tc.want)
+
+			var stored model.Token
+			require.NoError(t, db.First(&stored, token.Id).Error)
+			assert.False(t, stored.ClientLimitsEnabled, "a rejected update must not persist")
+		})
+	}
+}
+
+func TestUpdateTokenStoresCanonicalClientRestriction(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	token := seedToken(t, db, 1, "client-restricted", "clientcanonical56")
+
+	update := func(body map[string]any) tokenAPIResponse {
+		t.Helper()
+		ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/", body, 1)
+		UpdateToken(ctx)
+		return decodeAPIResponse(t, recorder)
+	}
+	base := func() map[string]any {
+		return map[string]any{
+			"id": token.Id, "name": token.Name, "expired_time": -1, "remain_quota": 100,
+			"unlimited_quota": true, "group": "default",
+		}
+	}
+	reload := func() *model.Token {
+		t.Helper()
+		var stored model.Token
+		require.NoError(t, db.First(&stored, token.Id).Error)
+		return &stored
+	}
+
+	body := base()
+	body["client_limits_enabled"] = true
+	body["client_limits"] = " hermes , codex ,codex,"
+	response := update(body)
+	require.True(t, response.Success, response.Message)
+
+	stored := reload()
+	assert.True(t, stored.ClientLimitsEnabled)
+	assert.Equal(t, "codex,hermes", stored.ClientLimits, "duplicates and padding are canonicalized")
+
+	// Turning the restriction off drops the stored list so a later enable does
+	// not inherit a stale selection.
+	body = base()
+	body["client_limits_enabled"] = false
+	body["client_limits"] = "codex"
+	response = update(body)
+	require.True(t, response.Success, response.Message)
+
+	stored = reload()
+	assert.False(t, stored.ClientLimitsEnabled)
+	assert.Empty(t, stored.ClientLimits)
 }

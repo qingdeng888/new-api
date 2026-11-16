@@ -40,6 +40,7 @@ import {
 } from './api-key-timestamp-cell'
 import {
   ApiKeyCell,
+  ClientLimitsCell,
   IpRestrictionsCell,
   ModelLimitsCell,
 } from './api-keys-cells'
@@ -171,6 +172,15 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
         accessorKey: 'model_limits',
         header: t('Models'),
         cell: ({ row }) => <ModelLimitsCell apiKey={row.original} />,
+        enableSorting: false,
+        size: 160,
+        meta: { mobileHidden: true },
+      },
+      {
+        id: 'client_limits',
+        accessorKey: 'client_limits',
+        header: t('Clients'),
+        cell: ({ row }) => <ClientLimitsCell apiKey={row.original} />,
         enableSorting: false,
         size: 160,
         meta: { mobileHidden: true },

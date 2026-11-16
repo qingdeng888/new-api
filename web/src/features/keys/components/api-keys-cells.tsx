@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/tooltip'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
 
+import { API_KEY_CLIENTS } from '../constants'
 import type { ApiKey } from '../types'
 import { useApiKeys } from './api-keys-provider'
 
@@ -151,6 +152,27 @@ export function ModelLimitsCell(props: ApiKeyRestrictionProps) {
       items={models}
       label={t('{{count}} models', { count: models.length })}
       title={t('Models')}
+      emptyLabel={t('Unlimited')}
+      detailsTrigger={props.detailsTrigger}
+    />
+  )
+}
+
+export function ClientLimitsCell(props: ApiKeyRestrictionProps) {
+  const { t } = useTranslation()
+  const clients = props.apiKey.client_limits_enabled
+    ? (props.apiKey.client_limits || '').split(',').filter(Boolean)
+    : []
+  const labels = clients.map((value) => {
+    const known = API_KEY_CLIENTS.find((client) => client.value === value)
+    return known ? t(known.label) : value
+  })
+
+  return (
+    <ApiKeyRestrictionCell
+      items={labels}
+      label={t('{{count}} clients', { count: labels.length })}
+      title={t('Clients')}
       emptyLabel={t('Unlimited')}
       detailsTrigger={props.detailsTrigger}
     />
