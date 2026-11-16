@@ -47,6 +47,9 @@ const (
 	// sets it so a single key (including a disabled one) can be probed.
 	ContextKeyChannelPinnedMultiKeyIndex ContextKey = "channel_pinned_multi_key_index"
 	ContextKeyChannelKey                 ContextKey = "channel_key"
+	// ContextKeyProviderPlugin holds the jsplugin.PinnedPlugin whose relay
+	// routes serve this request on a task plugin channel.
+	ContextKeyProviderPlugin ContextKey = "provider_plugin"
 
 	// ContextKeyUpstreamRequestOrigin is the scheme and host of the last upstream
 	// request, which differs from the base URL for absolute Advanced Custom routes
@@ -82,6 +85,9 @@ const (
 	ContextKeyLanguage             ContextKey = "language"
 	ContextKeyIsStream             ContextKey = "is_stream"
 	ContextKeyResponseStreamStatus ContextKey = "response_stream_status"
+	// ContextKeyConsumeLog holds the *model.RecordConsumeLogParams of the
+	// request's last consume log, which request plugin report hooks read.
+	ContextKeyConsumeLog ContextKey = "consume_log"
 
 	// ContextKeyAuditLogged marks that the current request has already recorded
 	// a manage/operation audit log inside the handler. When set, the admin-audit
