@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - dev
     tags:
       - 'v*'
   workflow_dispatch:
@@ -31,6 +32,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     outputs:
       version: ${{ steps.version.outputs.version }}
+      alias: ${{ steps.version.outputs.alias }}
       image: ${{ steps.image.outputs.image }}
     steps:
       - name: Check out
@@ -43,11 +45,21 @@ jobs:
         run: |
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             VERSION="${GITHUB_REF#refs/tags/}"
+            ALIAS="latest"
           else
             BRANCH=$(printf '%s' "$GITHUB_REF_NAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_.-]+/-/g; s/^[.-]+//; s/[.-]+$//')
             VERSION="${BRANCH}-$(date +'%Y%m%d')-$(git rev-parse --short HEAD)"
+            # main keeps the moving latest tag and dev publishes :dev. Any other
+            # branch, which only a manual dispatch can build, gets its dated
+            # version alone so it can never move latest.
+            case "$BRANCH" in
+              main) ALIAS="latest" ;;
+              dev) ALIAS="dev" ;;
+              *) ALIAS="" ;;
+            esac
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "alias=$ALIAS" >> "$GITHUB_OUTPUT"
           echo "$VERSION" > VERSION
           echo "Building version: $VERSION for ${{ matrix.arch }}"
 
@@ -56,6 +68,21 @@ jobs:
         run: |
           IMAGE="${REGISTRY}/${GITHUB_REPOSITORY,,}"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve build tags
+        id: tags
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          VERSION: ${{ steps.version.outputs.version }}
+          ALIAS: ${{ steps.version.outputs.alias }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          TAGS="${IMAGE}:${VERSION}-${ARCH}"
+          if [ -n "$ALIAS" ]; then
+            TAGS="${TAGS},${IMAGE}:${ALIAS}-${ARCH}"
+          fi
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "Publishing: ${TAGS}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
@@ -80,9 +107,7 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           push: true
-          tags: |
-            ${{ steps.image.outputs.image }}:${{ steps.version.outputs.version }}-${{ matrix.arch }}
-            ${{ steps.image.outputs.image }}:latest-${{ matrix.arch }}
+          tags: ${{ steps.tags.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -91,7 +116,7 @@ jobs:
         run: |
           echo "### Docker Image (${{ matrix.arch }})" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.image.outputs.image }}:${{ steps.version.outputs.version }}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.tags.outputs.tags }}" | tr ',' '\n' >> $GITHUB_STEP_SUMMARY
           echo "${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
@@ -108,22 +133,36 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create & push manifest (version)
+        env:
+          IMAGE: ${{ needs.build_single_arch.outputs.image }}
+          VERSION: ${{ needs.build_single_arch.outputs.version }}
         run: |
           docker buildx imagetools create \
-            -t ${{ needs.build_single_arch.outputs.image }}:${{ needs.build_single_arch.outputs.version }} \
-            ${{ needs.build_single_arch.outputs.image }}:${{ needs.build_single_arch.outputs.version }}-amd64 \
-            ${{ needs.build_single_arch.outputs.image }}:${{ needs.build_single_arch.outputs.version }}-arm64
+            -t "${IMAGE}:${VERSION}" \
+            "${IMAGE}:${VERSION}-amd64" \
+            "${IMAGE}:${VERSION}-arm64"
 
-      - name: Create & push manifest (latest)
+      - name: Create & push manifest (latest or dev)
+        if: needs.build_single_arch.outputs.alias != ''
+        env:
+          IMAGE: ${{ needs.build_single_arch.outputs.image }}
+          ALIAS: ${{ needs.build_single_arch.outputs.alias }}
         run: |
           docker buildx imagetools create \
-            -t ${{ needs.build_single_arch.outputs.image }}:latest \
-            ${{ needs.build_single_arch.outputs.image }}:latest-amd64 \
-            ${{ needs.build_single_arch.outputs.image }}:latest-arm64
+            -t "${IMAGE}:${ALIAS}" \
+            "${IMAGE}:${ALIAS}-amd64" \
+            "${IMAGE}:${ALIAS}-arm64"
 
       - name: Manifest summary
+        env:
+          IMAGE: ${{ needs.build_single_arch.outputs.image }}
+          VERSION: ${{ needs.build_single_arch.outputs.version }}
+          ALIAS: ${{ needs.build_single_arch.outputs.alias }}
         run: |
           echo "### Multi-arch Manifest" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          docker buildx imagetools inspect ${{ needs.build_single_arch.outputs.image }}:${{ needs.build_single_arch.outputs.version }} >> $GITHUB_STEP_SUMMARY
+          docker buildx imagetools inspect "${IMAGE}:${VERSION}" >> $GITHUB_STEP_SUMMARY
+          if [ -n "$ALIAS" ]; then
+            docker buildx imagetools inspect "${IMAGE}:${ALIAS}" >> $GITHUB_STEP_SUMMARY
+          fi
           echo '```' >> $GITHUB_STEP_SUMMARY
