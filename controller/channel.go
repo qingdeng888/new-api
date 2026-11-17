@@ -995,6 +995,9 @@ func DeleteChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if _, usageErr := model.DeleteChannelUsageByChannelIds(c.Request.Context(), []int{id}); usageErr != nil {
+		common.SysLog(common.LogText("failed to delete channel usage of channel %d: %s", id, usageErr.Error()))
+	}
 	if !channelLookupFailed {
 		service.RevokeDeletedChannelCredentials([]*model.Channel{existing})
 	}
@@ -1188,6 +1191,9 @@ func DeleteChannelBatch(c *gin.Context) {
 		return
 	}
 	service.RevokeDeletedChannelCredentials(revoked)
+	if _, usageErr := model.DeleteChannelUsageByChannelIds(c.Request.Context(), channelBatch.Ids); usageErr != nil {
+		common.SysLog(common.LogText("failed to delete channel usage of %d channels: %s", len(channelBatch.Ids), usageErr.Error()))
+	}
 	model.InitChannelCache()
 	if deletedCount > 0 {
 		service.ResetProxyClientCache()
@@ -1455,6 +1461,9 @@ func UpdateChannel(c *gin.Context) {
 	}
 	if keyChanged {
 		service.RevokeRemovedChannelCredentials(originChannel, keyBefore, keyAfter)
+		if _, usageErr := model.PruneChannelUsageKeys(channel.Id); usageErr != nil {
+			common.SysLog(common.LogText("failed to prune usage of removed keys on channel %d: %s", channel.Id, usageErr.Error()))
+		}
 	}
 	// 记录变更的字段名（语言无关的字段标识），密钥仅记录"已更换"绝不记录内容。
 	changedFields := make([]string, 0)
@@ -2335,6 +2344,9 @@ func ManageMultiKeys(c *gin.Context) {
 		}
 		model.InitChannelCache()
 		service.RevokeRemovedChannelCredentials(stored, keyBefore, stored.Key)
+		if _, usageErr := model.PruneChannelUsageKeys(channel.Id); usageErr != nil {
+			common.SysLog(common.LogText("failed to prune usage of deleted keys on channel %d: %s", channel.Id, usageErr.Error()))
+		}
 		if shouldCloseWebSocket {
 			closeActiveChannelWebSockets([]int{channel.Id})
 		}
@@ -2428,6 +2440,9 @@ func ManageMultiKeys(c *gin.Context) {
 		}
 		model.InitChannelCache()
 		service.RevokeRemovedChannelCredentials(stored, keyBefore, stored.Key)
+		if _, usageErr := model.PruneChannelUsageKeys(channel.Id); usageErr != nil {
+			common.SysLog(common.LogText("failed to prune usage of deleted keys on channel %d: %s", channel.Id, usageErr.Error()))
+		}
 		if shouldCloseWebSocket {
 			closeActiveChannelWebSockets([]int{channel.Id})
 		}

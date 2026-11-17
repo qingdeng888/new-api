@@ -82,14 +82,15 @@ func setupChannelUsageDB(t *testing.T, dialect string) *gorm.DB {
 	previousDB := DB
 	DB = db
 	t.Cleanup(func() {
-		require.NoError(t, db.Migrator().DropTable(&ChannelUsageData{}))
+		// Pruning reads the channel row, so every test needs that table too.
+		require.NoError(t, db.Migrator().DropTable(&ChannelUsageData{}, &Channel{}))
 		DB = previousDB
 		require.NoError(t, sqlDB.Close())
 	})
 
 	// Startup migrates on every boot, so a second pass must be a no-op.
-	require.NoError(t, db.AutoMigrate(&ChannelUsageData{}))
-	require.NoError(t, db.AutoMigrate(&ChannelUsageData{}))
+	require.NoError(t, db.AutoMigrate(&ChannelUsageData{}, &Channel{}))
+	require.NoError(t, db.AutoMigrate(&ChannelUsageData{}, &Channel{}))
 	return db
 }
 
@@ -272,7 +273,7 @@ func TestLogFunnelsRecordChannelUsage(t *testing.T) {
 		LOG_DB = previousLogDB
 		common.SetMainDatabaseType(previousType)
 	})
-	require.NoError(t, db.AutoMigrate(&Log{}, &ChannelUsageData{}))
+	require.NoError(t, db.AutoMigrate(&Log{}, &ChannelUsageData{}, &Channel{}))
 	resetChannelUsageCache(t)
 
 	gin.SetMode(gin.TestMode)
@@ -308,4 +309,104 @@ func TestLogFunnelsRecordChannelUsage(t *testing.T) {
 	assert.EqualValues(t, 40, row.CompletionTokens)
 	assert.EqualValues(t, 25, row.CacheReadTokens, "cache tokens come from the log's public scope")
 	assert.Equal(t, 900, row.Quota)
+}
+
+func TestPruneChannelUsageKeysDropsDeletedKeysOnly(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			db := setupChannelUsageDB(t, dialect)
+			resetChannelUsageCache(t)
+			require.NoError(t, db.Create(&Channel{Id: 21, Name: "keys", Key: "sk-keep\nsk-also-keep"}).Error)
+
+			hourStart := int64(1_700_000_000) - 1_700_000_000%3600
+			rows := []ChannelUsageData{
+				{ChannelId: 21, KeyFingerprint: ChannelKeyFingerprint("sk-keep"), ModelName: "m", CreatedAt: hourStart, RequestCount: 2},
+				{ChannelId: 21, KeyFingerprint: ChannelKeyFingerprint("sk-deleted"), ModelName: "m", CreatedAt: hourStart, RequestCount: 3},
+				{ChannelId: 21, KeyFingerprint: "", ModelName: "m", CreatedAt: hourStart, RequestCount: 1},
+			}
+			for i := range rows {
+				require.NoError(t, db.Create(&rows[i]).Error)
+			}
+			// A buffered row for the deleted key must go as well, or the next
+			// flush would bring it back.
+			LogChannelUsage(ChannelUsageLogParams{
+				ChannelId: 21, KeyFingerprint: ChannelKeyFingerprint("sk-deleted"), ModelName: "m",
+				CreatedAt: hourStart, Success: true,
+			})
+
+			deleted, err := PruneChannelUsageKeys(21)
+			require.NoError(t, err)
+			assert.EqualValues(t, 1, deleted)
+
+			var remaining []ChannelUsageData
+			require.NoError(t, db.Find(&remaining).Error)
+			require.Len(t, remaining, 2, "the kept key and the key-less row survive")
+			for _, row := range remaining {
+				assert.NotEqual(t, ChannelKeyFingerprint("sk-deleted"), row.KeyFingerprint)
+			}
+			channelUsageCacheLock.Lock()
+			assert.Empty(t, channelUsageCache, "the buffer no longer holds the deleted key")
+			channelUsageCacheLock.Unlock()
+		})
+	}
+}
+
+func TestPruneChannelUsageKeysLeavesAChannelBeingEdited(t *testing.T) {
+	db := setupChannelUsageDB(t, "sqlite")
+	resetChannelUsageCache(t)
+	// No keys: a channel mid-edit must not lose its history.
+	require.NoError(t, db.Create(&Channel{Id: 22, Name: "editing", Key: ""}).Error)
+	hourStart := int64(1_700_000_000) - 1_700_000_000%3600
+	require.NoError(t, db.Create(&ChannelUsageData{
+		ChannelId: 22, KeyFingerprint: "abcd", ModelName: "m", CreatedAt: hourStart, RequestCount: 1,
+	}).Error)
+
+	deleted, err := PruneChannelUsageKeys(22)
+	require.NoError(t, err)
+	assert.EqualValues(t, 0, deleted)
+
+	var count int64
+	require.NoError(t, db.Model(&ChannelUsageData{}).Count(&count).Error)
+	assert.EqualValues(t, 1, count)
+}
+
+func TestDeleteChannelUsageByChannelIdsRemovesWholeChannels(t *testing.T) {
+	db := setupChannelUsageDB(t, "sqlite")
+	resetChannelUsageCache(t)
+	hourStart := int64(1_700_000_000) - 1_700_000_000%3600
+	for _, channelId := range []int{31, 32, 33} {
+		require.NoError(t, db.Create(&ChannelUsageData{
+			ChannelId: channelId, KeyFingerprint: "aaaa", ModelName: "m", CreatedAt: hourStart, RequestCount: 1,
+		}).Error)
+	}
+	LogChannelUsage(ChannelUsageLogParams{ChannelId: 31, KeyFingerprint: "aaaa", ModelName: "m", CreatedAt: hourStart, Success: true})
+
+	deleted, err := DeleteChannelUsageByChannelIds(context.Background(), []int{31, 32})
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, deleted)
+
+	var remaining []ChannelUsageData
+	require.NoError(t, db.Find(&remaining).Error)
+	require.Len(t, remaining, 1)
+	assert.Equal(t, 33, remaining[0].ChannelId)
+	channelUsageCacheLock.Lock()
+	assert.Empty(t, channelUsageCache, "buffered rows of a deleted channel go too")
+	channelUsageCacheLock.Unlock()
+}
+
+func TestDeleteOrphanedChannelUsageRemovesDeletedChannels(t *testing.T) {
+	db := setupChannelUsageDB(t, "sqlite")
+	require.NoError(t, db.Create(&Channel{Id: 41, Name: "alive", Key: "sk-a"}).Error)
+	hourStart := int64(1_700_000_000) - 1_700_000_000%3600
+	require.NoError(t, db.Create(&ChannelUsageData{ChannelId: 41, ModelName: "m", CreatedAt: hourStart}).Error)
+	require.NoError(t, db.Create(&ChannelUsageData{ChannelId: 42, ModelName: "m", CreatedAt: hourStart}).Error)
+
+	deleted, err := DeleteOrphanedChannelUsage(context.Background())
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, deleted)
+
+	var remaining []ChannelUsageData
+	require.NoError(t, db.Find(&remaining).Error)
+	require.Len(t, remaining, 1)
+	assert.Equal(t, 41, remaining[0].ChannelId)
 }

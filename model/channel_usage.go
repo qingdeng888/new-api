@@ -23,7 +23,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -191,8 +193,17 @@ func SaveChannelUsageCache() error {
 		return nil
 	}
 	var firstErr error
+	touched := make(map[int]bool, len(pending))
 	for _, row := range pending {
+		touched[row.ChannelId] = true
 		if err := saveChannelUsageRow(row); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	// Another node may have deleted a key in the meantime and left this batch
+	// with rows for it; drop what the channel no longer has.
+	for channelId := range touched {
+		if _, err := PruneChannelUsageKeys(channelId); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
@@ -237,21 +248,42 @@ func DeleteExpiredChannelUsage(ctx context.Context, now int64) (int64, error) {
 	before := now - ChannelUsageRetentionSeconds
 	var deleted int64
 	for {
-		expired := DB.Model(&ChannelUsageData{}).
-			Select("id").
+		// MySQL rejects LIMIT inside an IN subquery, so the batch of ids is
+		// collected first and deleted by value.
+		var ids []int
+		if err := DB.Model(&ChannelUsageData{}).
 			Where("created_at < ?", before).
-			Limit(channelUsageDeleteBatchSize)
-		result := DB.WithContext(ctx).
-			Where("id IN (?)", expired).
-			Delete(&ChannelUsageData{})
+			Limit(channelUsageDeleteBatchSize).
+			Pluck("id", &ids).Error; err != nil {
+			return deleted, err
+		}
+		if len(ids) == 0 {
+			return deleted, nil
+		}
+		result := DB.WithContext(ctx).Where("id IN ?", ids).Delete(&ChannelUsageData{})
 		if result.Error != nil {
 			return deleted, result.Error
 		}
 		deleted += result.RowsAffected
-		if result.RowsAffected < channelUsageDeleteBatchSize {
+		if len(ids) < channelUsageDeleteBatchSize {
 			return deleted, nil
 		}
 	}
+}
+
+// DeleteOrphanedChannelUsage removes usage of channels that no longer exist, so
+// a channel deleted on another node stops being counted even when this process
+// never handled the deletion.
+func DeleteOrphanedChannelUsage(ctx context.Context) (int64, error) {
+	var channelIds []int
+	if err := DB.Model(&Channel{}).Pluck("id", &channelIds).Error; err != nil {
+		return 0, err
+	}
+	if len(channelIds) == 0 {
+		return DB.WithContext(ctx).Where("1 = 1").Delete(&ChannelUsageData{}).RowsAffected, nil
+	}
+	result := DB.WithContext(ctx).Where("channel_id NOT IN ?", channelIds).Delete(&ChannelUsageData{})
+	return result.RowsAffected, result.Error
 }
 
 // UpdateChannelUsageData flushes buffered counters and prunes expired rows once
@@ -268,6 +300,12 @@ func UpdateChannelUsageData() {
 			continue
 		}
 		lastCleanupDay = day
+		if orphaned, err := DeleteOrphanedChannelUsage(context.Background()); err != nil {
+			common.SysLog(common.LogText("failed to delete orphaned channel usage data: %s", err.Error()))
+			lastCleanupDay = 0
+		} else if orphaned > 0 {
+			common.SysLog(common.LogText("deleted %d channel usage records of removed channels", orphaned))
+		}
 		deleted, err := DeleteExpiredChannelUsage(context.Background(), common.GetTimestamp())
 		if err != nil {
 			common.SysLog(common.LogText("failed to delete expired channel usage data: %s", err.Error()))
@@ -312,4 +350,62 @@ func GetChannelUsageAggregates(startTime, endTime int64, channelId int) ([]*Chan
 	var rows []*ChannelUsageAggregate
 	err := query.Find(&rows).Error
 	return rows, err
+}
+
+// PruneChannelUsageKeys deletes usage whose key is no longer in the channel, and
+// the same rows still held in this process's buffer, so deleting a key removes
+// its statistics rather than leaving them behind as an orphan.
+//
+// A channel with no keys is left alone: that state is a channel being edited,
+// not evidence that every key was deleted.
+func PruneChannelUsageKeys(channelId int) (int64, error) {
+	channel, err := GetChannelById(channelId, true)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	keys := channel.GetKeys()
+	if len(keys) == 0 {
+		return 0, nil
+	}
+	keep := make([]string, 0, len(keys))
+	keepSet := make(map[string]bool, len(keys))
+	for _, key := range keys {
+		fingerprint := ChannelKeyFingerprint(key)
+		keep = append(keep, fingerprint)
+		keepSet[fingerprint] = true
+	}
+
+	channelUsageCacheLock.Lock()
+	for bufferKey, row := range channelUsageCache {
+		if row.ChannelId == channelId && row.KeyFingerprint != "" && !keepSet[row.KeyFingerprint] {
+			delete(channelUsageCache, bufferKey)
+		}
+	}
+	channelUsageCacheLock.Unlock()
+
+	result := DB.Where("channel_id = ? AND key_fingerprint <> ''", channelId).
+		Where("key_fingerprint NOT IN ?", keep).
+		Delete(&ChannelUsageData{})
+	return result.RowsAffected, result.Error
+}
+
+// DeleteChannelUsageByChannelIds removes every usage row of the given channels,
+// for a deleted channel leaving no statistics behind.
+func DeleteChannelUsageByChannelIds(ctx context.Context, channelIds []int) (int64, error) {
+	if len(channelIds) == 0 {
+		return 0, nil
+	}
+	channelUsageCacheLock.Lock()
+	for bufferKey, row := range channelUsageCache {
+		if slices.Contains(channelIds, row.ChannelId) {
+			delete(channelUsageCache, bufferKey)
+		}
+	}
+	channelUsageCacheLock.Unlock()
+
+	result := DB.WithContext(ctx).Where("channel_id IN ?", channelIds).Delete(&ChannelUsageData{})
+	return result.RowsAffected, result.Error
 }

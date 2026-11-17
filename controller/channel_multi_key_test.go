@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -403,4 +404,90 @@ func TestProxyPoolConnectivityTestRejectsForeignEntries(t *testing.T) {
 		many[i] = "socks5://10.6.0.1:1080"
 	}
 	assert.Equal(t, false, callTest(proxyConnectivityRequest{URLs: many})["success"])
+}
+
+// Deleting a key must drop the statistics that key accumulated; the channel's
+// other keys keep theirs.
+func TestManageMultiKeysPrunesUsageOfTheDeletedKey(t *testing.T) {
+	root := setupMultiKeyManageTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.ChannelUsageData{}))
+	channel := &model.Channel{
+		Name:        "usage-multi",
+		Type:        1,
+		Key:         "sk-first\nsk-second",
+		Group:       "default",
+		Models:      "gpt-4o",
+		ChannelInfo: model.ChannelInfo{IsMultiKey: true, MultiKeySize: 2},
+	}
+	require.NoError(t, model.DB.Create(channel).Error)
+
+	hourStart := common.GetTimestamp()
+	hourStart -= hourStart % 3600
+	for _, key := range []string{"sk-first", "sk-second"} {
+		require.NoError(t, model.DB.Create(&model.ChannelUsageData{
+			ChannelId:      channel.Id,
+			KeyFingerprint: model.ChannelKeyFingerprint(key),
+			ModelName:      "gpt-4o",
+			CreatedAt:      hourStart,
+			RequestCount:   2,
+		}).Error)
+	}
+
+	payload, err := common.Marshal(MultiKeyManageRequest{ChannelId: channel.Id, Action: "delete_key", KeyIndex: common.GetPointer(0)})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("id", root.Id)
+	c.Set("role", common.RoleRootUser)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/channel/multi_key", bytes.NewReader(payload))
+	c.Request.Header.Set("Content-Type", "application/json")
+	ManageMultiKeys(c)
+
+	var result struct {
+		Success bool `json:"success"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &result))
+	require.True(t, result.Success, recorder.Body.String())
+
+	var remaining []model.ChannelUsageData
+	require.NoError(t, model.DB.Where("channel_id = ?", channel.Id).Find(&remaining).Error)
+	require.Len(t, remaining, 1, "only the surviving key keeps its usage")
+	assert.Equal(t, model.ChannelKeyFingerprint("sk-second"), remaining[0].KeyFingerprint)
+}
+
+// Deleting a channel must take its whole usage history with it.
+func TestDeleteChannelRemovesItsUsage(t *testing.T) {
+	root := setupMultiKeyManageTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.ChannelUsageData{}))
+	channel := &model.Channel{Name: "usage-delete", Type: 1, Key: "sk-a", Group: "default", Models: "gpt-4o"}
+	require.NoError(t, model.DB.Create(channel).Error)
+	other := &model.Channel{Name: "usage-keep", Type: 1, Key: "sk-b", Group: "default", Models: "gpt-4o"}
+	require.NoError(t, model.DB.Create(other).Error)
+	hourStart := common.GetTimestamp()
+	hourStart -= hourStart % 3600
+	for _, channelId := range []int{channel.Id, other.Id} {
+		require.NoError(t, model.DB.Create(&model.ChannelUsageData{
+			ChannelId: channelId, KeyFingerprint: model.ChannelKeyFingerprint("sk-x"),
+			ModelName: "gpt-4o", CreatedAt: hourStart, RequestCount: 1,
+		}).Error)
+	}
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Set("id", root.Id)
+	c.Set("role", common.RoleRootUser)
+	c.Params = gin.Params{{Key: "id", Value: strconv.Itoa(channel.Id)}}
+	c.Request = httptest.NewRequest(http.MethodDelete, "/api/channel/"+strconv.Itoa(channel.Id), nil)
+	DeleteChannel(c)
+
+	var result struct {
+		Success bool `json:"success"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &result))
+	require.True(t, result.Success, recorder.Body.String())
+
+	var remaining []model.ChannelUsageData
+	require.NoError(t, model.DB.Find(&remaining).Error)
+	require.Len(t, remaining, 1, "the surviving channel keeps its usage")
+	assert.Equal(t, other.Id, remaining[0].ChannelId)
 }
