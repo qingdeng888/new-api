@@ -85,10 +85,11 @@ type ChannelUsageLogParams struct {
 	Quota            int
 }
 
-// recordChannelUsage captures the attempt behind a relay log. The key comes from
-// the channel selection the distributor made, so it names the key that actually
-// served or failed the attempt.
-func recordChannelUsage(c *gin.Context, channelId int, modelName string, success bool,
+// RecordChannelUsageAttempt captures one upstream attempt. The key comes from the
+// channel selection the distributor made, so it names the key that actually
+// served or failed the attempt. Callers that settle something other than a
+// request, such as an administrative channel test, pass no attempt at all.
+func RecordChannelUsageAttempt(c *gin.Context, channelId int, modelName string, success bool,
 	promptTokens, completionTokens, cacheReadTokens, quota int) {
 	keyFingerprint := ""
 	if c != nil {

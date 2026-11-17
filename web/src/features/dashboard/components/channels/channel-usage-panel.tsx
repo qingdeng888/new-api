@@ -177,7 +177,7 @@ export function ChannelUsagePanel() {
               const expanded = expandedChannels.has(channel.channel_id)
               const keysId = `channel-usage-keys-${channel.channel_id}`
               return (
-                <tbody key={channel.channel_id}>
+                <tbody key={channel.channel_id} id={keysId}>
                   <tr className='hover:bg-muted/40 border-b'>
                     <td className='px-3 py-1.5'>
                       <button
@@ -208,7 +208,6 @@ export function ChannelUsagePanel() {
                     channel.keys.map((key) => (
                       <tr
                         key={`${channel.channel_id}-${key.fingerprint || 'none'}`}
-                        id={keysId}
                         className='border-b last:border-0'
                       >
                         <td className='py-1.5 pr-3 pl-9'>

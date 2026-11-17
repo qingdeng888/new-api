@@ -320,7 +320,6 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	if err != nil {
 		logger.LogError(c, common.LogText("failed to record log: %s", err.Error()))
 	}
-	recordChannelUsage(c, channelId, modelName, false, 0, 0, 0, 0)
 }
 
 type RecordConsumeLogParams struct {
@@ -336,6 +335,9 @@ type RecordConsumeLogParams struct {
 	IsStream         bool              `json:"is_stream"`
 	Group            string            `json:"group"`
 	Other            *LogOther         `json:"other"`
+	// SkipChannelUsage marks a settlement that is not a request of its own,
+	// such as charging a violation fee; it must not add to channel traffic.
+	SkipChannelUsage bool `json:"-"`
 }
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
@@ -348,8 +350,10 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	if params.Other != nil {
 		cacheReadTokens, _ = params.Other.public["cache_tokens"].(int)
 	}
-	recordChannelUsage(c, params.ChannelId, params.ModelName, true,
-		params.PromptTokens, params.CompletionTokens, cacheReadTokens, params.Quota)
+	if !params.SkipChannelUsage {
+		RecordChannelUsageAttempt(c, params.ChannelId, params.ModelName, true,
+			params.PromptTokens, params.CompletionTokens, cacheReadTokens, params.Quota)
+	}
 	if !common.LogConsumeEnabled {
 		return
 	}
@@ -465,23 +469,6 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	err := createLog(log)
 	if err != nil {
 		common.SysLog(common.LogText("failed to record task billing log: %s", err.Error()))
-	}
-	if params.LogType == LogTypeConsume {
-		// Task settlement carries no prompt/completion split, so the attempt
-		// counts without token usage.
-		var cacheReadTokens int
-		if other != nil {
-			cacheReadTokens, _ = other.public["cache_tokens"].(int)
-		}
-		LogChannelUsage(ChannelUsageLogParams{
-			ChannelId:       params.ChannelId,
-			ModelName:       params.ModelName,
-			NodeName:        params.NodeName,
-			CreatedAt:       createdAt,
-			Success:         true,
-			CacheReadTokens: cacheReadTokens,
-			Quota:           params.Quota,
-		})
 	}
 	if params.LogType == LogTypeConsume && common.DataExportEnabled {
 		nodeName := params.NodeName

@@ -192,6 +192,20 @@ func TestGetChannelUsageClampsTheWindowToTheRetention(t *testing.T) {
 	assert.Empty(t, payload.Data.Channels)
 }
 
+// A caller that asks for a window starting in the future must not be answered
+// with a future range.
+func TestGetChannelUsageClampsAFutureStart(t *testing.T) {
+	setupChannelUsageControllerTest(t)
+	now := common.GetTimestamp()
+
+	payload := callChannelUsage(t, fmt.Sprintf("start_timestamp=%d&end_timestamp=%d",
+		now+7200, now+3600))
+
+	assert.LessOrEqual(t, payload.Data.EndTimestamp, now)
+	assert.Less(t, payload.Data.StartTimestamp, payload.Data.EndTimestamp)
+	assert.Empty(t, payload.Data.Channels)
+}
+
 func TestGetChannelUsageDefaultsToTheLastSevenDays(t *testing.T) {
 	setupChannelUsageControllerTest(t)
 	now := common.GetTimestamp()

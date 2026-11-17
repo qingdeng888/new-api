@@ -171,7 +171,7 @@ func TestRecordChannelUsageNamesTheSelectedChannelKey(t *testing.T) {
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	common.SetContextKey(ctx, constant.ContextKeyChannelKey, "sk-channel-key")
 
-	recordChannelUsage(ctx, 3, "gpt-4o", true, 10, 5, 0, 1)
+	RecordChannelUsageAttempt(ctx, 3, "gpt-4o", true, 10, 5, 0, 1)
 
 	channelUsageCacheLock.Lock()
 	defer channelUsageCacheLock.Unlock()
@@ -257,8 +257,9 @@ func TestDeleteExpiredChannelUsageKeepsTheRetentionWindow(t *testing.T) {
 	}
 }
 
-// The attempts the console counts come from the log funnels, so a success and a
-// failure on the same key must land in one stored hour with both counts.
+// The attempts the console counts come from the settlement path, and a failure
+// reaches it through the relay error handler rather than the error log, so the
+// error log itself must leave the counters alone.
 func TestLogFunnelsRecordChannelUsage(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -298,13 +299,13 @@ func TestLogFunnelsRecordChannelUsage(t *testing.T) {
 
 	var rows []ChannelUsageData
 	require.NoError(t, db.Find(&rows).Error)
-	require.Len(t, rows, 1, "both attempts belong to the same hour and key")
+	require.Len(t, rows, 1, "the error log alone adds no traffic")
 	row := rows[0]
 	assert.Equal(t, 5, row.ChannelId)
 	assert.Equal(t, ChannelKeyFingerprint("sk-first"), row.KeyFingerprint)
-	assert.Equal(t, 2, row.RequestCount)
+	assert.Equal(t, 1, row.RequestCount)
 	assert.Equal(t, 1, row.SuccessCount)
-	assert.Equal(t, 1, row.FailureCount)
+	assert.Zero(t, row.FailureCount)
 	assert.EqualValues(t, 100, row.PromptTokens)
 	assert.EqualValues(t, 40, row.CompletionTokens)
 	assert.EqualValues(t, 25, row.CacheReadTokens, "cache tokens come from the log's public scope")

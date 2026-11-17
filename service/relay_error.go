@@ -104,7 +104,15 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 // RecordRelayErrorLog writes the error log of a failed relay request when
 // error logs are on. channelId is 0 for a request that reached no channel.
 func RecordRelayErrorLog(c *gin.Context, channelId int, err *types.NewAPIError, relayInfo *relaycommon.RelayInfo) {
-	if !constant.ErrorLogEnabled || !types.IsRecordErrorLog(err) {
+	if !types.IsRecordErrorLog(err) {
+		return
+	}
+	// Channel statistics count the failed attempt even where error logs are
+	// kept off, which is the default installation. Errors that never reached a
+	// channel, or that the caller caused (quota, validation), are excluded by
+	// the guard above and by the channel id.
+	model.RecordChannelUsageAttempt(c, channelId, c.GetString("original_model"), false, 0, 0, 0, 0)
+	if !constant.ErrorLogEnabled {
 		return
 	}
 	userId := c.GetInt("id")

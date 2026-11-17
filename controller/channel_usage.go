@@ -86,16 +86,17 @@ func GetChannelUsage(c *gin.Context) {
 
 	startTime := parseInt64Query(c, "start_timestamp", now-7*24*3600)
 	endTime := parseInt64Query(c, "end_timestamp", now)
-	if endTime > now {
-		endTime = now
+	// Clamp both bounds into the answerable window, then keep the interval
+	// forward, so no caller can make the answer describe a future range or one
+	// longer than the retention.
+	endTime = min(endTime, now)
+	startTime = max(min(startTime, now), earliest)
+	if startTime >= endTime {
+		startTime = max(earliest, endTime-1)
 	}
 	if endTime <= startTime {
 		endTime = startTime + 1
 	}
-	if startTime < earliest {
-		startTime = earliest
-	}
-	// A window longer than the retention cannot be answered either.
 	if endTime-startTime > model.ChannelUsageRetentionSeconds {
 		startTime = endTime - model.ChannelUsageRetentionSeconds
 	}
@@ -157,6 +158,25 @@ func buildChannelUsage(rows []*model.ChannelUsageAggregate) ([]ChannelUsageChann
 			channelsById[channel.Id] = channel
 		}
 	}
+	// Resolve each channel's keys once; a channel can hold many keys and every
+	// aggregate row would otherwise rescan them.
+	keySlotsByChannel := make(map[int]*channelKeySlots, len(channelsById))
+	for channelId, channel := range channelsById {
+		keys := channel.GetKeys()
+		slots := &channelKeySlots{
+			index: make(map[string]int, len(keys)),
+			label: make(map[string]string, len(keys)),
+		}
+		for index, key := range keys {
+			fingerprint := model.ChannelKeyFingerprint(key)
+			if _, seen := slots.index[fingerprint]; seen {
+				continue
+			}
+			slots.index[fingerprint] = index
+			slots.label[fingerprint] = model.MaskTokenKey(key)
+		}
+		keySlotsByChannel[channelId] = slots
+	}
 
 	type keyBucket struct {
 		key     ChannelUsageKey
@@ -167,13 +187,16 @@ func buildChannelUsage(rows []*model.ChannelUsageAggregate) ([]ChannelUsageChann
 	byChannel := make(map[int]map[string]*keyBucket, len(channelIds))
 
 	for _, row := range rows {
-		channel, exists := channelsById[row.ChannelId]
 		keyIndex := -1
 		keyLabel := ""
 		removed := false
-		if exists {
-			keyIndex, keyLabel = channelKeySlot(channel, row.KeyFingerprint)
-			removed = row.KeyFingerprint != "" && keyIndex < 0
+		if slots, exists := keySlotsByChannel[row.ChannelId]; exists {
+			if index, found := slots.index[row.KeyFingerprint]; found {
+				keyIndex = index
+				keyLabel = slots.label[row.KeyFingerprint]
+			} else {
+				removed = row.KeyFingerprint != ""
+			}
 		}
 
 		keys, ok := byChannel[row.ChannelId]
@@ -249,19 +272,11 @@ func buildChannelUsage(rows []*model.ChannelUsageAggregate) ([]ChannelUsageChann
 	return result, nil
 }
 
-// channelKeySlot finds the position of a key fingerprint in the channel's
-// current key list, and the masked label to display for it. It reports -1 when
-// the fingerprint belongs to no current key.
-func channelKeySlot(channel *model.Channel, fingerprint string) (int, string) {
-	if fingerprint == "" || channel == nil {
-		return -1, ""
-	}
-	for index, key := range channel.GetKeys() {
-		if model.ChannelKeyFingerprint(key) == fingerprint {
-			return index, model.MaskTokenKey(key)
-		}
-	}
-	return -1, ""
+// channelKeySlots maps a channel's key fingerprints to their position and
+// masked label.
+type channelKeySlots struct {
+	index map[string]int
+	label map[string]string
 }
 
 func addAggregate(target *ChannelUsageTotals, row *model.ChannelUsageAggregate) {

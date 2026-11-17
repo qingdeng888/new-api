@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -323,4 +324,82 @@ func TestShouldDisableChannelIgnoresLocalErrors(t *testing.T) {
 			assert.Equal(t, wantHealth, events[1].Health, "the logged health matches the disable decision")
 		})
 	}
+}
+
+// Channel statistics must count a failed attempt even on an installation that
+// keeps no error logs, which is the default; otherwise every channel reports a
+// failure count of zero.
+func TestRecordRelayErrorLogCountsChannelUsageWithoutErrorLogs(t *testing.T) {
+	originalDB := model.DB
+	originalErrorLogEnabled := constant.ErrorLogEnabled
+	t.Cleanup(func() {
+		model.DB = originalDB
+		constant.ErrorLogEnabled = originalErrorLogEnabled
+	})
+
+	// Drain attempts other tests buffered, so this test only sees its own.
+	_ = model.SaveChannelUsageCache()
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:%s?mode=memory&cache=shared",
+		strings.ReplaceAll(t.Name(), "/", "_"))), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.ChannelUsageData{}, &model.Channel{}))
+	model.DB = db
+	constant.ErrorLogEnabled = false
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	ctx.Set("original_model", "gpt-4o")
+	common.SetContextKey(ctx, constant.ContextKeyChannelKey, "sk-channel-first")
+
+	failure := types.NewError(errors.New("upstream refused"), types.ErrorCodeBadResponse)
+	RecordRelayErrorLog(ctx, 5, failure, nil)
+	require.NoError(t, model.SaveChannelUsageCache())
+
+	var rows []model.ChannelUsageData
+	require.NoError(t, db.Find(&rows).Error)
+	require.Len(t, rows, 1, "the failed attempt is counted with error logs off")
+	assert.Equal(t, 5, rows[0].ChannelId)
+	assert.Equal(t, "gpt-4o", rows[0].ModelName)
+	assert.Equal(t, 1, rows[0].RequestCount)
+	assert.Zero(t, rows[0].SuccessCount)
+	assert.Equal(t, 1, rows[0].FailureCount)
+	assert.Equal(t, model.ChannelKeyFingerprint("sk-channel-first"), rows[0].KeyFingerprint)
+
+	// A caller-caused error is not a channel failure.
+	require.NoError(t, db.Where("1 = 1").Delete(&model.ChannelUsageData{}).Error)
+	callerError := types.NewErrorWithStatusCode(errors.New("insufficient quota"),
+		types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithNoRecordErrorLog())
+	RecordRelayErrorLog(ctx, 5, callerError, nil)
+	require.NoError(t, model.SaveChannelUsageCache())
+	require.NoError(t, db.Find(&rows).Error)
+	assert.Empty(t, rows, "quota and validation errors are the caller's, not the channel's")
+}
+
+// An administrative channel test and a violation fee are not user requests, so
+// they leave channel traffic untouched.
+func TestRecordConsumeLogSkipChannelUsageLeavesTrafficAlone(t *testing.T) {
+	originalDB := model.DB
+	t.Cleanup(func() { model.DB = originalDB })
+	_ = model.SaveChannelUsageCache()
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:%s?mode=memory&cache=shared",
+		strings.ReplaceAll(t.Name(), "/", "_"))), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.ChannelUsageData{}, &model.Log{}, &model.Channel{}))
+	model.DB = db
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	common.SetContextKey(ctx, constant.ContextKeyChannelKey, "sk-channel-first")
+
+	model.RecordConsumeLog(ctx, 1, model.RecordConsumeLogParams{
+		ChannelId: 5, ModelName: "gpt-4o", Quota: 100,
+		Other: model.NewLogOther(), SkipChannelUsage: true,
+	})
+	require.NoError(t, model.SaveChannelUsageCache())
+
+	var count int64
+	require.NoError(t, db.Model(&model.ChannelUsageData{}).Count(&count).Error)
+	assert.Zero(t, count, "a settlement marked as no-attempt adds nothing")
 }
