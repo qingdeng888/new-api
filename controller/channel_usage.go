@@ -1,0 +1,278 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+package controller
+
+import (
+	"net/http"
+	"sort"
+	"strconv"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+
+	"github.com/gin-gonic/gin"
+)
+
+// ChannelUsageTotals is what one channel, key or model row displays.
+type ChannelUsageTotals struct {
+	RequestCount     int   `json:"request_count"`
+	SuccessCount     int   `json:"success_count"`
+	FailureCount     int   `json:"failure_count"`
+	PromptTokens     int64 `json:"prompt_tokens"`
+	CompletionTokens int64 `json:"completion_tokens"`
+	CacheReadTokens  int64 `json:"cache_read_tokens"`
+	Quota            int   `json:"quota"`
+}
+
+// ChannelUsageModel is one model inside a key.
+type ChannelUsageModel struct {
+	ModelName string `json:"model_name"`
+	ChannelUsageTotals
+}
+
+// ChannelUsageKey is one channel key. Removed marks usage whose key is no longer
+// in the channel, so the row stays visible after a key is deleted. A key index
+// of -1 means the attempt carried no key (task settlement).
+type ChannelUsageKey struct {
+	KeyIndex    int    `json:"key_index"`
+	KeyLabel    string `json:"key_label"`
+	Fingerprint string `json:"fingerprint"`
+	Removed     bool   `json:"removed"`
+	ChannelUsageTotals
+	Models []ChannelUsageModel `json:"models"`
+}
+
+// ChannelUsageChannel is one channel with its keys.
+type ChannelUsageChannel struct {
+	ChannelId   int    `json:"channel_id"`
+	ChannelName string `json:"channel_name"`
+	ChannelType int    `json:"channel_type"`
+	// Removed marks a channel whose usage outlived the channel itself.
+	Removed bool `json:"removed"`
+	ChannelUsageTotals
+	Keys []ChannelUsageKey `json:"keys"`
+}
+
+type ChannelUsageResponse struct {
+	StartTimestamp int64                 `json:"start_timestamp"`
+	EndTimestamp   int64                 `json:"end_timestamp"`
+	Channels       []ChannelUsageChannel `json:"channels"`
+}
+
+// GetChannelUsage serves the channel statistics tab: every channel with its
+// keys and the models each key served over the requested window. The window is
+// clamped to the retention period, so a caller asking for a year still reads a
+// bounded range and is told which range answered.
+func GetChannelUsage(c *gin.Context) {
+	now := common.GetTimestamp()
+	earliest := now - model.ChannelUsageRetentionSeconds
+
+	startTime := parseInt64Query(c, "start_timestamp", now-7*24*3600)
+	endTime := parseInt64Query(c, "end_timestamp", now)
+	if endTime > now {
+		endTime = now
+	}
+	if endTime <= startTime {
+		endTime = startTime + 1
+	}
+	if startTime < earliest {
+		startTime = earliest
+	}
+	// A window longer than the retention cannot be answered either.
+	if endTime-startTime > model.ChannelUsageRetentionSeconds {
+		startTime = endTime - model.ChannelUsageRetentionSeconds
+	}
+	channelId, _ := strconv.Atoi(c.Query("channel_id"))
+
+	rows, err := model.GetChannelUsageAggregates(startTime, endTime, channelId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	channels, err := buildChannelUsage(rows)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": ChannelUsageResponse{
+			StartTimestamp: startTime,
+			EndTimestamp:   endTime,
+			Channels:       channels,
+		},
+	})
+}
+
+func parseInt64Query(c *gin.Context, name string, fallback int64) int64 {
+	raw := c.Query(name)
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return fallback
+	}
+	return value
+}
+
+// buildChannelUsage folds the aggregate rows into the channel → key → model tree
+// the console shows, naming keys from the channel's current key list.
+func buildChannelUsage(rows []*model.ChannelUsageAggregate) ([]ChannelUsageChannel, error) {
+	channelIds := make([]int, 0, len(rows))
+	seenChannel := make(map[int]bool, len(rows))
+	for _, row := range rows {
+		if !seenChannel[row.ChannelId] {
+			seenChannel[row.ChannelId] = true
+			channelIds = append(channelIds, row.ChannelId)
+		}
+	}
+
+	channelsById := make(map[int]*model.Channel, len(channelIds))
+	if len(channelIds) > 0 {
+		stored, err := model.GetChannelsByIds(channelIds)
+		if err != nil {
+			return nil, err
+		}
+		for _, channel := range stored {
+			channelsById[channel.Id] = channel
+		}
+	}
+
+	type keyBucket struct {
+		key     ChannelUsageKey
+		models  map[string]*ChannelUsageModel
+		removed bool
+	}
+	// channel id → key fingerprint (or "" ) → bucket
+	byChannel := make(map[int]map[string]*keyBucket, len(channelIds))
+
+	for _, row := range rows {
+		channel, exists := channelsById[row.ChannelId]
+		keyIndex := -1
+		keyLabel := ""
+		removed := false
+		if exists {
+			keyIndex, keyLabel = channelKeySlot(channel, row.KeyFingerprint)
+			removed = row.KeyFingerprint != "" && keyIndex < 0
+		}
+
+		keys, ok := byChannel[row.ChannelId]
+		if !ok {
+			keys = make(map[string]*keyBucket)
+			byChannel[row.ChannelId] = keys
+		}
+		bucket, ok := keys[row.KeyFingerprint]
+		if !ok {
+			bucket = &keyBucket{
+				key: ChannelUsageKey{
+					KeyIndex:    keyIndex,
+					KeyLabel:    keyLabel,
+					Fingerprint: row.KeyFingerprint,
+					Removed:     removed,
+				},
+				models: make(map[string]*ChannelUsageModel),
+			}
+			keys[row.KeyFingerprint] = bucket
+		}
+		addAggregate(&bucket.key.ChannelUsageTotals, row)
+
+		modelRow, ok := bucket.models[row.ModelName]
+		if !ok {
+			modelRow = &ChannelUsageModel{ModelName: row.ModelName}
+			bucket.models[row.ModelName] = modelRow
+		}
+		addAggregate(&modelRow.ChannelUsageTotals, row)
+	}
+
+	result := make([]ChannelUsageChannel, 0, len(byChannel))
+	for channelId, keys := range byChannel {
+		entry := ChannelUsageChannel{ChannelId: channelId}
+		if channel, exists := channelsById[channelId]; exists {
+			entry.ChannelName = channel.Name
+			entry.ChannelType = channel.Type
+		} else {
+			entry.Removed = true
+		}
+		for _, bucket := range keys {
+			for _, modelRow := range bucket.models {
+				bucket.key.Models = append(bucket.key.Models, *modelRow)
+			}
+			sort.Slice(bucket.key.Models, func(i, j int) bool {
+				return bucket.key.Models[i].RequestCount > bucket.key.Models[j].RequestCount
+			})
+			addTotals(&entry.ChannelUsageTotals, bucket.key.ChannelUsageTotals)
+			entry.Keys = append(entry.Keys, bucket.key)
+		}
+		sort.Slice(entry.Keys, func(i, j int) bool {
+			if entry.Keys[i].KeyIndex != entry.Keys[j].KeyIndex {
+				return entry.Keys[i].KeyIndex < entry.Keys[j].KeyIndex
+			}
+			return entry.Keys[i].Fingerprint < entry.Keys[j].Fingerprint
+		})
+		result = append(result, entry)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].RequestCount != result[j].RequestCount {
+			return result[i].RequestCount > result[j].RequestCount
+		}
+		return result[i].ChannelId < result[j].ChannelId
+	})
+	return result, nil
+}
+
+// channelKeySlot finds the position of a key fingerprint in the channel's
+// current key list, and the masked label to display for it. It reports -1 when
+// the fingerprint belongs to no current key.
+func channelKeySlot(channel *model.Channel, fingerprint string) (int, string) {
+	if fingerprint == "" || channel == nil {
+		return -1, ""
+	}
+	for index, key := range channel.GetKeys() {
+		if model.ChannelKeyFingerprint(key) == fingerprint {
+			return index, model.MaskTokenKey(key)
+		}
+	}
+	return -1, ""
+}
+
+func addAggregate(target *ChannelUsageTotals, row *model.ChannelUsageAggregate) {
+	addTotals(target, ChannelUsageTotals{
+		RequestCount:     row.RequestCount,
+		SuccessCount:     row.SuccessCount,
+		FailureCount:     row.FailureCount,
+		PromptTokens:     row.PromptTokens,
+		CompletionTokens: row.CompletionTokens,
+		CacheReadTokens:  row.CacheReadTokens,
+		Quota:            row.Quota,
+	})
+}
+
+func addTotals(target *ChannelUsageTotals, added ChannelUsageTotals) {
+	target.RequestCount += added.RequestCount
+	target.SuccessCount += added.SuccessCount
+	target.FailureCount += added.FailureCount
+	target.PromptTokens += added.PromptTokens
+	target.CompletionTokens += added.CompletionTokens
+	target.CacheReadTokens += added.CacheReadTokens
+	target.Quota += added.Quota
+}

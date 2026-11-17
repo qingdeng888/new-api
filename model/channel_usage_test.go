@@ -255,3 +255,57 @@ func TestDeleteExpiredChannelUsageKeepsTheRetentionWindow(t *testing.T) {
 		})
 	}
 }
+
+// The attempts the console counts come from the log funnels, so a success and a
+// failure on the same key must land in one stored hour with both counts.
+func TestLogFunnelsRecordChannelUsage(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	previousDB := DB
+	previousLogDB := LOG_DB
+	previousType := common.MainDatabaseType()
+	DB = db
+	LOG_DB = db
+	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
+	t.Cleanup(func() {
+		DB = previousDB
+		LOG_DB = previousLogDB
+		common.SetMainDatabaseType(previousType)
+	})
+	require.NoError(t, db.AutoMigrate(&Log{}, &ChannelUsageData{}))
+	resetChannelUsageCache(t)
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	common.SetContextKey(ctx, constant.ContextKeyChannelKey, "sk-first")
+
+	other := NewLogOther()
+	other.SetPublic("cache_tokens", 25)
+	RecordConsumeLog(ctx, 1, RecordConsumeLogParams{
+		ChannelId:        5,
+		ModelName:        "gpt-4o",
+		PromptTokens:     100,
+		CompletionTokens: 40,
+		Quota:            900,
+		Group:            "default",
+		Other:            other,
+	})
+	RecordErrorLog(ctx, 1, 5, "gpt-4o", "token-name", "upstream refused", 0, 1, false, "default", NewLogOther())
+
+	require.NoError(t, SaveChannelUsageCache())
+
+	var rows []ChannelUsageData
+	require.NoError(t, db.Find(&rows).Error)
+	require.Len(t, rows, 1, "both attempts belong to the same hour and key")
+	row := rows[0]
+	assert.Equal(t, 5, row.ChannelId)
+	assert.Equal(t, ChannelKeyFingerprint("sk-first"), row.KeyFingerprint)
+	assert.Equal(t, 2, row.RequestCount)
+	assert.Equal(t, 1, row.SuccessCount)
+	assert.Equal(t, 1, row.FailureCount)
+	assert.EqualValues(t, 100, row.PromptTokens)
+	assert.EqualValues(t, 40, row.CompletionTokens)
+	assert.EqualValues(t, 25, row.CacheReadTokens, "cache tokens come from the log's public scope")
+	assert.Equal(t, 900, row.Quota)
+}

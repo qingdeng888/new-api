@@ -280,3 +280,36 @@ func UpdateChannelUsageData() {
 		}
 	}
 }
+
+// ChannelUsageAggregate is one channel key's total for one model over a window.
+type ChannelUsageAggregate struct {
+	ChannelId        int    `json:"channel_id"`
+	KeyFingerprint   string `json:"key_fingerprint"`
+	ModelName        string `json:"model_name"`
+	RequestCount     int    `json:"request_count"`
+	SuccessCount     int    `json:"success_count"`
+	FailureCount     int    `json:"failure_count"`
+	PromptTokens     int64  `json:"prompt_tokens"`
+	CompletionTokens int64  `json:"completion_tokens"`
+	CacheReadTokens  int64  `json:"cache_read_tokens"`
+	Quota            int    `json:"quota"`
+}
+
+// GetChannelUsageAggregates sums the stored hours of a window, one row per
+// channel, key and model. An empty channelId keeps every channel.
+func GetChannelUsageAggregates(startTime, endTime int64, channelId int) ([]*ChannelUsageAggregate, error) {
+	query := DB.Model(&ChannelUsageData{}).
+		Select("channel_id, key_fingerprint, model_name,"+
+			" sum(request_count) as request_count, sum(success_count) as success_count,"+
+			" sum(failure_count) as failure_count, sum(prompt_tokens) as prompt_tokens,"+
+			" sum(completion_tokens) as completion_tokens, sum(cache_read_tokens) as cache_read_tokens,"+
+			" sum(quota) as quota").
+		Where("created_at >= ? AND created_at <= ?", startTime, endTime).
+		Group("channel_id, key_fingerprint, model_name")
+	if channelId > 0 {
+		query = query.Where("channel_id = ?", channelId)
+	}
+	var rows []*ChannelUsageAggregate
+	err := query.Find(&rows).Error
+	return rows, err
+}
