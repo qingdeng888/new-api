@@ -355,6 +355,7 @@ func migrateDB() error {
 		&Midjourney{},
 		&TopUp{},
 		&QuotaData{},
+		&ChannelUsageData{},
 		&Task{},
 		&TaskPlugin{},
 		&Model{},

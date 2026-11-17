@@ -320,6 +320,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	if err != nil {
 		logger.LogError(c, common.LogText("failed to record log: %s", err.Error()))
 	}
+	recordChannelUsage(c, channelId, modelName, false, 0, 0, 0, 0)
 }
 
 type RecordConsumeLogParams struct {
@@ -341,6 +342,14 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	// Request plugin report hooks read what the request settled, whether or
 	// not consume logs are kept.
 	common.SetContextKey(c, constant.ContextKeyConsumeLog, &params)
+	// Channel usage is counted from settlement, not from the log switch: an
+	// installation that keeps no consume logs still wants channel totals.
+	var cacheReadTokens int
+	if params.Other != nil {
+		cacheReadTokens, _ = params.Other.public["cache_tokens"].(int)
+	}
+	recordChannelUsage(c, params.ChannelId, params.ModelName, true,
+		params.PromptTokens, params.CompletionTokens, cacheReadTokens, params.Quota)
 	if !common.LogConsumeEnabled {
 		return
 	}
@@ -390,9 +399,8 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		logger.LogError(c, common.LogText("failed to record log: %s", err.Error()))
 	}
 	if common.DataExportEnabled {
-		var cacheReadTokens, cacheCreationTokens int
+		var cacheCreationTokens int
 		if other != nil {
-			cacheReadTokens, _ = other.public["cache_tokens"].(int)
 			// The settlement path already normalizes the cache creation total.
 			// Do not add the 5m/1h breakdown again or infer tokens from prices.
 			cacheCreationTokens, _ = other.public["cache_write_tokens"].(int)
@@ -457,6 +465,23 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	err := createLog(log)
 	if err != nil {
 		common.SysLog(common.LogText("failed to record task billing log: %s", err.Error()))
+	}
+	if params.LogType == LogTypeConsume {
+		// Task settlement carries no prompt/completion split, so the attempt
+		// counts without token usage.
+		var cacheReadTokens int
+		if other != nil {
+			cacheReadTokens, _ = other.public["cache_tokens"].(int)
+		}
+		LogChannelUsage(ChannelUsageLogParams{
+			ChannelId:       params.ChannelId,
+			ModelName:       params.ModelName,
+			NodeName:        params.NodeName,
+			CreatedAt:       createdAt,
+			Success:         true,
+			CacheReadTokens: cacheReadTokens,
+			Quota:           params.Quota,
+		})
 	}
 	if params.LogType == LogTypeConsume && common.DataExportEnabled {
 		nodeName := params.NodeName
