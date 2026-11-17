@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 
 import type {
+  ChannelUsageResponse,
   FlowQuotaDataItem,
   QuotaDataItem,
   UptimeGroupResult,
@@ -89,5 +90,24 @@ export async function getUptimeStatus() {
   const res = await api.get<{ success: boolean; data: UptimeGroupResult[] }>(
     '/api/uptime/status'
   )
+  return res.data
+}
+
+// ----------------------------------------------------------------------------
+// Channel Usage
+// ----------------------------------------------------------------------------
+
+// Channel → key → model usage. The backend clamps the window to its 30-day
+// retention and reports the range that answered.
+export async function getChannelUsage(params: {
+  start_timestamp: number
+  end_timestamp: number
+  channel_id?: number
+}) {
+  const res = await api.get<{
+    success: boolean
+    message?: string
+    data: ChannelUsageResponse
+  }>('/api/data/channels', { params })
   return res.data
 }

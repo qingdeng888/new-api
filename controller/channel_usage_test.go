@@ -127,7 +127,12 @@ func TestGetChannelUsageKeepsUsageOfDeletedKeysAndChannels(t *testing.T) {
 	now := common.GetTimestamp()
 	hour := now - now%3600
 
-	// A key removed from the channel after it served traffic.
+	// A current key, a key removed from the channel after it served traffic,
+	// and a channel deleted after it served traffic.
+	insertChannelUsage(t, model.ChannelUsageData{
+		ChannelId: 5, KeyFingerprint: model.ChannelKeyFingerprint("sk-first"), ModelName: "gpt-4o",
+		CreatedAt: hour, NodeName: "n1", RequestCount: 4, SuccessCount: 4,
+	})
 	insertChannelUsage(t, model.ChannelUsageData{
 		ChannelId: 5, KeyFingerprint: model.ChannelKeyFingerprint("sk-removed"), ModelName: "gpt-4o",
 		CreatedAt: hour, NodeName: "n1", RequestCount: 3, SuccessCount: 3,
@@ -147,9 +152,11 @@ func TestGetChannelUsageKeepsUsageOfDeletedKeysAndChannels(t *testing.T) {
 	}
 
 	live := byId[5]
-	require.Len(t, live.Keys, 1)
-	assert.True(t, live.Keys[0].Removed, "usage of a deleted key stays visible")
-	assert.Equal(t, -1, live.Keys[0].KeyIndex)
+	require.Len(t, live.Keys, 2)
+	assert.False(t, live.Keys[0].Removed, "a current key is listed first")
+	assert.Equal(t, 0, live.Keys[0].KeyIndex)
+	assert.True(t, live.Keys[1].Removed, "usage of a deleted key stays visible")
+	assert.Equal(t, -1, live.Keys[1].KeyIndex)
 
 	gone := byId[99]
 	assert.True(t, gone.Removed, "usage of a deleted channel stays visible")

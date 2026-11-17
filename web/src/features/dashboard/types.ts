@@ -274,3 +274,51 @@ export interface FAQItem {
   question: string
   answer: string
 }
+
+// ============================================================================
+// Channel Usage
+// ============================================================================
+
+/**
+ * Counters the channel statistics tab shows for a channel, a key or a model.
+ * `request_count` counts upstream attempts, so a retried request adds to each
+ * channel it reached.
+ */
+export interface ChannelUsageTotals {
+  request_count: number
+  success_count: number
+  failure_count: number
+  prompt_tokens: number
+  completion_tokens: number
+  cache_read_tokens: number
+  quota: number
+}
+
+export interface ChannelUsageModel extends ChannelUsageTotals {
+  model_name: string
+}
+
+export interface ChannelUsageKey extends ChannelUsageTotals {
+  /** Position in the channel's current key list, or -1 when the attempt named no key. */
+  key_index: number
+  key_label: string
+  fingerprint: string
+  /** The key is no longer in the channel, so only its usage remains. */
+  removed: boolean
+  models: ChannelUsageModel[]
+}
+
+export interface ChannelUsageChannel extends ChannelUsageTotals {
+  channel_id: number
+  channel_name: string
+  channel_type: number
+  /** The channel was deleted, so only its usage remains. */
+  removed: boolean
+  keys: ChannelUsageKey[]
+}
+
+export interface ChannelUsageResponse {
+  start_timestamp: number
+  end_timestamp: number
+  channels: ChannelUsageChannel[]
+}

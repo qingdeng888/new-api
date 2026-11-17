@@ -223,11 +223,20 @@ func buildChannelUsage(rows []*model.ChannelUsageAggregate) ([]ChannelUsageChann
 			addTotals(&entry.ChannelUsageTotals, bucket.key.ChannelUsageTotals)
 			entry.Keys = append(entry.Keys, bucket.key)
 		}
+		// Current keys first in their list order, then attempts that named no
+		// key, then usage whose key no longer exists.
 		sort.Slice(entry.Keys, func(i, j int) bool {
-			if entry.Keys[i].KeyIndex != entry.Keys[j].KeyIndex {
-				return entry.Keys[i].KeyIndex < entry.Keys[j].KeyIndex
+			left, right := entry.Keys[i], entry.Keys[j]
+			if left.Removed != right.Removed {
+				return !left.Removed
 			}
-			return entry.Keys[i].Fingerprint < entry.Keys[j].Fingerprint
+			if (left.KeyIndex < 0) != (right.KeyIndex < 0) {
+				return left.KeyIndex >= 0
+			}
+			if left.KeyIndex != right.KeyIndex {
+				return left.KeyIndex < right.KeyIndex
+			}
+			return left.Fingerprint < right.Fingerprint
 		})
 		result = append(result, entry)
 	}
