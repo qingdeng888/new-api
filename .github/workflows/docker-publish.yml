@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - dev
+      - dev2
     tags:
       - 'v*'
   workflow_dispatch:
@@ -49,12 +50,14 @@ jobs:
           else
             BRANCH=$(printf '%s' "$GITHUB_REF_NAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_.-]+/-/g; s/^[.-]+//; s/[.-]+$//')
             VERSION="${BRANCH}-$(date +'%Y%m%d')-$(git rev-parse --short HEAD)"
-            # main keeps the moving latest tag and dev publishes :dev. Any other
-            # branch, which only a manual dispatch can build, gets its dated
-            # version alone so it can never move latest.
+            # main keeps the moving latest tag; each development branch publishes
+            # its own moving tag. Any other branch, which only a manual dispatch
+            # can build, gets its dated version alone so it can never move
+            # latest.
             case "$BRANCH" in
               main) ALIAS="latest" ;;
               dev) ALIAS="dev" ;;
+              dev2) ALIAS="dev2" ;;
               *) ALIAS="" ;;
             esac
           fi
