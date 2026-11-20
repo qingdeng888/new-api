@@ -337,13 +337,14 @@ func TestRecordRelayErrorLogCountsChannelUsageWithoutErrorLogs(t *testing.T) {
 		constant.ErrorLogEnabled = originalErrorLogEnabled
 	})
 
-	// Drain attempts other tests buffered, so this test only sees its own.
-	_ = model.SaveChannelUsageCache()
+	// Flush earlier tests' attempts only after the isolated schema is ready.
 	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:%s?mode=memory&cache=shared",
 		strings.ReplaceAll(t.Name(), "/", "_"))), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.ChannelUsageData{}, &model.Channel{}))
 	model.DB = db
+	require.NoError(t, model.SaveChannelUsageCache())
+	require.NoError(t, db.Where("1 = 1").Delete(&model.ChannelUsageData{}).Error)
 	constant.ErrorLogEnabled = false
 
 	gin.SetMode(gin.TestMode)
@@ -381,12 +382,13 @@ func TestRecordRelayErrorLogCountsChannelUsageWithoutErrorLogs(t *testing.T) {
 func TestRecordConsumeLogSkipChannelUsageLeavesTrafficAlone(t *testing.T) {
 	originalDB := model.DB
 	t.Cleanup(func() { model.DB = originalDB })
-	_ = model.SaveChannelUsageCache()
 	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:%s?mode=memory&cache=shared",
 		strings.ReplaceAll(t.Name(), "/", "_"))), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.ChannelUsageData{}, &model.Log{}, &model.Channel{}))
 	model.DB = db
+	require.NoError(t, model.SaveChannelUsageCache())
+	require.NoError(t, db.Where("1 = 1").Delete(&model.ChannelUsageData{}).Error)
 
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())

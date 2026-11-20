@@ -178,21 +178,54 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
     : ((props.table.getState().globalFilter as string | undefined) ?? '')
 
   const [searchDraft, setSearchDraft] = useState<SearchDraft | null>(null)
+  // Keep later typing through our own delayed URL echoes, then forget each echo.
+  const pendingSearchValues = React.useRef<string[]>([])
+  const acknowledgedSearchIndex = pendingSearchValues.current.findIndex(
+    (value) =>
+      value === currentSearchValue || value.trim() === currentSearchValue
+  )
   const activeSearchDraft =
     searchDraft &&
-    (isSearchComposing || searchDraft.baseValue === currentSearchValue)
+    (isSearchComposing ||
+      searchDraft.baseValue === currentSearchValue ||
+      searchDraft.value.trim() === currentSearchValue ||
+      acknowledgedSearchIndex >= 0)
       ? searchDraft
       : null
+
+  React.useEffect(() => {
+    if (acknowledgedSearchIndex >= 0) {
+      pendingSearchValues.current.splice(0, acknowledgedSearchIndex + 1)
+      setSearchDraft((draft) =>
+        draft && draft.baseValue !== currentSearchValue
+          ? { ...draft, baseValue: currentSearchValue }
+          : draft
+      )
+    } else if (!activeSearchDraft) {
+      pendingSearchValues.current = []
+      if (searchDraft) setSearchDraft(null)
+    }
+  }, [
+    acknowledgedSearchIndex,
+    activeSearchDraft,
+    currentSearchValue,
+    searchDraft,
+  ])
+
   const searchValue = activeSearchDraft?.value ?? currentSearchValue
   const searchDebounceMs = Math.max(0, props.searchDebounceMs ?? 0)
   const debouncedSearchValue = useDebounce(searchValue, searchDebounceMs)
 
   const commitSearchValue = React.useCallback(
     (value: string) => {
-      if (value === currentSearchValue) {
+      if (
+        value === currentSearchValue ||
+        pendingSearchValues.current.includes(value)
+      ) {
         return
       }
 
+      pendingSearchValues.current.push(value)
       if (props.searchKey) {
         props.table.getColumn(props.searchKey)?.setFilterValue(value)
         return
@@ -280,6 +313,7 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
   )
 
   const handleReset = () => {
+    pendingSearchValues.current = []
     setIsSearchComposing(false)
     setSearchDraft(null)
     props.table.resetColumnFilters()

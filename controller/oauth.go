@@ -1,6 +1,9 @@
 package controller
 
 import (
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -19,7 +22,57 @@ import (
 	"gorm.io/gorm"
 )
 
-const oauthAuthFlowTTL = 10 * time.Minute
+const (
+	oauthAuthFlowTTL       = 10 * time.Minute
+	oauthLoginVerifierSize = 64
+)
+
+func oauthLoginCookieName(state string) string {
+	sum := sha256.Sum256([]byte(state))
+	name := "new_api_oauth_" + hex.EncodeToString(sum[:16])
+	if common.SessionCookieSecure {
+		return "__Host-" + name
+	}
+	return name
+}
+
+func writeOAuthLoginCookie(c *gin.Context, state, verifier string, expiresAt time.Time) {
+	path := "/api/oauth"
+	if common.SessionCookieSecure {
+		path = "/" // Required by the __Host- prefix to prevent subdomain cookie injection.
+	}
+	maxAge := max(1, int(time.Until(expiresAt)/time.Second))
+	if verifier == "" {
+		maxAge = -1
+	}
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name: oauthLoginCookieName(state), Value: verifier, Path: path,
+		MaxAge: maxAge, Expires: expiresAt, HttpOnly: true,
+		Secure: common.SessionCookieSecure, SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func validateOAuthLoginBrowser(request *http.Request, state, verifierHash string) bool {
+	if len(verifierHash) != sha256.Size*2 {
+		return false
+	}
+	// Reject duplicate names rather than choosing an ambiguous cookie value.
+	var verifier string
+	for _, cookie := range request.Cookies() {
+		if cookie.Name != oauthLoginCookieName(state) {
+			continue
+		}
+		if verifier != "" || len(cookie.Value) != oauthLoginVerifierSize {
+			return false
+		}
+		verifier = cookie.Value
+	}
+	if verifier == "" {
+		return false
+	}
+	sum := sha256.Sum256([]byte(verifier))
+	return subtle.ConstantTimeCompare([]byte(hex.EncodeToString(sum[:])), []byte(verifierHash)) == 1
+}
 
 type oauthStateRequest struct {
 	Provider string          `json:"provider"`
@@ -30,11 +83,12 @@ type oauthStateRequest struct {
 }
 
 type oauthFlowPayload struct {
-	AffiliateCode   string                         `json:"affiliate_code,omitempty"`
-	Verification    *service.OAuthVerificationFlow `json:"verification,omitempty"`
-	Telegram        *oauth.TelegramOAuthFlow       `json:"telegram,omitempty"`
-	SessionIdentity *service.AuthIdentity          `json:"session_identity,omitempty"`
-	Authorization   *model.AuthFlowAuthorization   `json:"authorization,omitempty"`
+	LoginVerifierHash string                         `json:"login_verifier_hash,omitempty"`
+	AffiliateCode     string                         `json:"affiliate_code,omitempty"`
+	Verification      *service.OAuthVerificationFlow `json:"verification,omitempty"`
+	Telegram          *oauth.TelegramOAuthFlow       `json:"telegram,omitempty"`
+	SessionIdentity   *service.AuthIdentity          `json:"session_identity,omitempty"`
+	Authorization     *model.AuthFlowAuthorization   `json:"authorization,omitempty"`
 }
 
 // providerParams returns the params of messages that name the OAuth provider.
@@ -111,6 +165,17 @@ func GenerateOAuthCode(c *gin.Context) {
 			flowPayload.Verification = verification
 		}
 	}
+	var loginVerifier string
+	if request.Intent == model.AuthFlowIntentLogin {
+		var err error
+		loginVerifier, err = common.GenerateRandomCharsKey(oauthLoginVerifierSize)
+		if err != nil {
+			writeSecurityOperationError(c, err)
+			return
+		}
+		sum := sha256.Sum256([]byte(loginVerifier))
+		flowPayload.LoginVerifierHash = hex.EncodeToString(sum[:])
+	}
 	payload, err := common.Marshal(flowPayload)
 	if err != nil {
 		writeSecurityOperationError(c, err)
@@ -129,6 +194,9 @@ func GenerateOAuthCode(c *gin.Context) {
 	if err != nil {
 		writeSecurityOperationError(c, err)
 		return
+	}
+	if loginVerifier != "" {
+		writeOAuthLoginCookie(c, state, loginVerifier, expiresAt)
 	}
 	bindingStarted = request.Intent == model.AuthFlowIntentBind
 	data := gin.H{"flow_token": state, "expires_at": expiresAt.Unix()}
@@ -198,7 +266,14 @@ func HandleOAuth(c *gin.Context) {
 				return
 			}
 		}
-	} else if pendingFlow.Intent != model.AuthFlowIntentLogin {
+	} else if pendingFlow.Intent == model.AuthFlowIntentLogin {
+		var payload oauthFlowPayload
+		if err := common.UnmarshalJsonStr(pendingFlow.Payload, &payload); err != nil ||
+			!validateOAuthLoginBrowser(c.Request, state, payload.LoginVerifierHash) {
+			writeAccountStatusError(c, http.StatusForbidden, "State parameter is empty or mismatched")
+			return
+		}
+	} else {
 		common.ApiErrorT(c, "Invalid parameters")
 		return
 	}
@@ -238,6 +313,9 @@ func HandleOAuth(c *gin.Context) {
 		if _, err := model.ConsumeAuthFlow(state, consumeMatch); err != nil {
 			writeAccountStatusError(c, http.StatusForbidden, "State parameter is empty or mismatched")
 			return
+		}
+		if pendingFlow.Intent == model.AuthFlowIntentLogin {
+			writeOAuthLoginCookie(c, state, "", time.Unix(1, 0))
 		}
 		errorDescription := c.Query("error_description")
 		if errorDescription == "" {
@@ -283,6 +361,7 @@ func HandleOAuth(c *gin.Context) {
 
 	switch flow.Intent {
 	case model.AuthFlowIntentLogin:
+		writeOAuthLoginCookie(c, state, "", time.Unix(1, 0))
 		handleOAuthLogin(c, provider, oauthUser, token, flow)
 	case model.AuthFlowIntentVerify:
 		handleOAuthVerification(c, providerName, oauthUser, flow)

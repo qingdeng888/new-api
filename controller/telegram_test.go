@@ -47,14 +47,15 @@ type telegramTestGrant struct {
 }
 
 type telegramOAuthFixture struct {
-	user        *model.User
-	identity    service.AuthIdentity
-	client      *http.Client
-	key         *rsa.PrivateKey
-	mutex       sync.Mutex
-	grants      map[string]telegramTestGrant
-	tokenStatus int
-	jwksStatus  int
+	user           *model.User
+	identity       service.AuthIdentity
+	client         *http.Client
+	key            *rsa.PrivateKey
+	mutex          sync.Mutex
+	grants         map[string]telegramTestGrant
+	browserCookies map[string][]*http.Cookie
+	tokenStatus    int
+	jwksStatus     int
 }
 
 func setupTelegramOAuthTest(t *testing.T) *telegramOAuthFixture {
@@ -85,7 +86,7 @@ func setupTelegramOAuthTest(t *testing.T) *telegramOAuthFixture {
 	})
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
-	fixture := &telegramOAuthFixture{user: user, identity: identity, key: key, grants: map[string]telegramTestGrant{}}
+	fixture := &telegramOAuthFixture{user: user, identity: identity, key: key, grants: map[string]telegramTestGrant{}, browserCookies: map[string][]*http.Cookie{}}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		fixture.mutex.Lock()
 		defer fixture.mutex.Unlock()
@@ -168,6 +169,7 @@ func (fixture *telegramOAuthFixture) authorization(t *testing.T, intent string, 
 		URL   string `json:"authorization_url"`
 	}
 	require.NoError(t, common.Unmarshal(body.Data, &data))
+	fixture.browserCookies[data.State] = response.Result().Cookies()
 	authorizationURL, err := url.Parse(data.URL)
 	require.NoError(t, err)
 	assert.Equal(t, "https://oauth.telegram.org/auth", authorizationURL.Scheme+"://"+authorizationURL.Host+authorizationURL.Path)
@@ -191,9 +193,12 @@ func telegramIdentityClaims(id any) jwt.MapClaims {
 	}
 }
 
-func telegramOAuthCallback(state, code string, identity service.AuthIdentity) *httptest.ResponseRecorder {
+func telegramOAuthCallback(state, code string, identity service.AuthIdentity, cookies ...*http.Cookie) *httptest.ResponseRecorder {
 	path := "/api/oauth/telegram?" + url.Values{"state": {state}, "code": {code}}.Encode()
 	return securityEnrollmentRequest("GET", path, "", "", identity, func(c *gin.Context) {
+		for _, cookie := range cookies {
+			c.Request.AddCookie(cookie)
+		}
 		c.Params = gin.Params{{Key: "provider", Value: "telegram"}}
 		HandleOAuth(c)
 	})
@@ -206,7 +211,7 @@ func TestTelegramOAuthPreservesExistingAccountAndBinding(t *testing.T) {
 	require.NoError(t, model.InitializeExternalIdentityClaims())
 	require.NoError(t, model.InitializeExternalIdentityClaims())
 	state, code := fixture.authorization(t, "login", service.AuthIdentity{}, "", telegramIdentityClaims(json.Number(telegramID)))
-	response := telegramOAuthCallback(state, code, service.AuthIdentity{})
+	response := telegramOAuthCallback(state, code, service.AuthIdentity{}, fixture.browserCookies[state]...)
 	var body securityEnrollmentResponse
 	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
 	require.True(t, body.Success, response.Body.String())
@@ -223,10 +228,10 @@ func TestTelegramOAuthPreservesExistingAccountAndBinding(t *testing.T) {
 	var claim model.ExternalIdentityClaim
 	require.NoError(t, model.DB.Where("provider = ? AND subject = ?", "telegram", telegramID).First(&claim).Error)
 	assert.Equal(t, stored.Id, claim.UserId)
-	replay := telegramOAuthCallback(state, code, service.AuthIdentity{})
+	replay := telegramOAuthCallback(state, code, service.AuthIdentity{}, fixture.browserCookies[state]...)
 	assert.Equal(t, http.StatusForbidden, replay.Code)
 	state, code = fixture.authorization(t, "login", service.AuthIdentity{}, "", telegramIdentityClaims(999))
-	response = telegramOAuthCallback(state, code, service.AuthIdentity{})
+	response = telegramOAuthCallback(state, code, service.AuthIdentity{}, fixture.browserCookies[state]...)
 	assert.Contains(t, response.Body.String(), "TELEGRAM_ACCOUNT_NOT_BOUND")
 	var count int64
 	require.NoError(t, model.DB.Model(&model.User{}).Count(&count).Error)
@@ -253,7 +258,7 @@ func TestTelegramOAuthRejectsInvalidTokens(t *testing.T) {
 			claims := telegramIdentityClaims(42)
 			test.change(claims)
 			state, code := fixture.authorization(t, "login", service.AuthIdentity{}, "", claims)
-			response := telegramOAuthCallback(state, code, service.AuthIdentity{})
+			response := telegramOAuthCallback(state, code, service.AuthIdentity{}, fixture.browserCookies[state]...)
 			assert.Contains(t, response.Body.String(), "TELEGRAM_OAUTH_FAILED")
 			assert.NotContains(t, response.Body.String(), "access_token")
 		})
@@ -265,14 +270,14 @@ func TestTelegramOAuthRejectsInvalidTokens(t *testing.T) {
 		grant := fixture.grants[code]
 		grant.key = otherKey
 		fixture.grants[code] = grant
-		assert.Contains(t, telegramOAuthCallback(state, code, service.AuthIdentity{}).Body.String(), "TELEGRAM_OAUTH_FAILED")
+		assert.Contains(t, telegramOAuthCallback(state, code, service.AuthIdentity{}, fixture.browserCookies[state]...).Body.String(), "TELEGRAM_OAUTH_FAILED")
 	})
 	t.Run("PKCE", func(t *testing.T) {
 		state, code := fixture.authorization(t, "login", service.AuthIdentity{}, "", telegramIdentityClaims(42))
 		grant := fixture.grants[code]
 		grant.challenge = "wrong-challenge"
 		fixture.grants[code] = grant
-		assert.Contains(t, telegramOAuthCallback(state, code, service.AuthIdentity{}).Body.String(), "TELEGRAM_OAUTH_FAILED")
+		assert.Contains(t, telegramOAuthCallback(state, code, service.AuthIdentity{}, fixture.browserCookies[state]...).Body.String(), "TELEGRAM_OAUTH_FAILED")
 	})
 	for _, endpoint := range []string{"token", "jwks"} {
 		t.Run(endpoint+" unavailable", func(t *testing.T) {
@@ -283,7 +288,7 @@ func TestTelegramOAuthRejectsInvalidTokens(t *testing.T) {
 			} else {
 				fixture.jwksStatus = 503
 			}
-			response := telegramOAuthCallback(state, code, service.AuthIdentity{})
+			response := telegramOAuthCallback(state, code, service.AuthIdentity{}, fixture.browserCookies[state]...)
 			assert.Contains(t, response.Body.String(), "TELEGRAM_OAUTH_FAILED")
 			fixture.tokenStatus, fixture.jwksStatus = 0, 0
 		})

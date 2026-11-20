@@ -71,6 +71,16 @@ type ChannelUsageData struct {
 	Quota            int    `json:"quota"`
 }
 
+func (row *ChannelUsageData) addCounts(added *ChannelUsageData) {
+	row.RequestCount += added.RequestCount
+	row.SuccessCount += added.SuccessCount
+	row.FailureCount += added.FailureCount
+	row.PromptTokens += added.PromptTokens
+	row.CompletionTokens += added.CompletionTokens
+	row.CacheReadTokens += added.CacheReadTokens
+	row.Quota += added.Quota
+}
+
 // ChannelUsageLogParams is one upstream attempt as the log funnels see it.
 type ChannelUsageLogParams struct {
 	ChannelId        int
@@ -170,20 +180,14 @@ func LogChannelUsage(params ChannelUsageLogParams) {
 	channelUsageCacheLock.Lock()
 	defer channelUsageCacheLock.Unlock()
 	if buffered, ok := channelUsageCache[key]; ok {
-		buffered.RequestCount += row.RequestCount
-		buffered.SuccessCount += row.SuccessCount
-		buffered.FailureCount += row.FailureCount
-		buffered.PromptTokens += row.PromptTokens
-		buffered.CompletionTokens += row.CompletionTokens
-		buffered.CacheReadTokens += row.CacheReadTokens
-		buffered.Quota += row.Quota
+		buffered.addCounts(row)
 		return
 	}
 	channelUsageCache[key] = row
 }
 
-// SaveChannelUsageCache writes the buffered rows and empties the buffer. A row
-// that grows during the write is written again by the next flush.
+// SaveChannelUsageCache writes buffered rows and keeps failed writes for the next
+// flush, merging them with attempts recorded while the database write ran.
 func SaveChannelUsageCache() error {
 	channelUsageCacheLock.Lock()
 	pending := channelUsageCache
@@ -194,12 +198,24 @@ func SaveChannelUsageCache() error {
 		return nil
 	}
 	var firstErr error
+	var saved int
 	touched := make(map[int]bool, len(pending))
-	for _, row := range pending {
+	for key, row := range pending {
 		touched[row.ChannelId] = true
-		if err := saveChannelUsageRow(row); err != nil && firstErr == nil {
-			firstErr = err
+		if err := saveChannelUsageRow(row); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			channelUsageCacheLock.Lock()
+			if buffered, ok := channelUsageCache[key]; ok {
+				buffered.addCounts(row)
+			} else {
+				channelUsageCache[key] = row
+			}
+			channelUsageCacheLock.Unlock()
+			continue
 		}
+		saved++
 	}
 	// Another node may have deleted a key in the meantime and left this batch
 	// with rows for it; drop what the channel no longer has.
@@ -208,7 +224,7 @@ func SaveChannelUsageCache() error {
 			firstErr = err
 		}
 	}
-	common.SysLog(common.LogText("saved channel usage data, %d records", len(pending)))
+	common.SysLog(common.LogText("saved channel usage data, %d records", saved))
 	return firstErr
 }
 
@@ -239,7 +255,13 @@ func saveChannelUsageRow(row *ChannelUsageData) error {
 		return nil
 	}
 	if err := DB.Create(row).Error; err != nil {
-		return increase().Error
+		result = increase()
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return err
+		}
 	}
 	return nil
 }
@@ -281,7 +303,8 @@ func DeleteOrphanedChannelUsage(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	if len(channelIds) == 0 {
-		return DB.WithContext(ctx).Where("1 = 1").Delete(&ChannelUsageData{}).RowsAffected, nil
+		result := DB.WithContext(ctx).Where("1 = 1").Delete(&ChannelUsageData{})
+		return result.RowsAffected, result.Error
 	}
 	result := DB.WithContext(ctx).Where("channel_id NOT IN ?", channelIds).Delete(&ChannelUsageData{})
 	return result.RowsAffected, result.Error

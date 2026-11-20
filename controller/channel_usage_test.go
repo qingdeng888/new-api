@@ -206,6 +206,21 @@ func TestGetChannelUsageClampsAFutureStart(t *testing.T) {
 	assert.Empty(t, payload.Data.Channels)
 }
 
+func TestGetChannelUsageClampsOldAndExtremeEndTimes(t *testing.T) {
+	setupChannelUsageControllerTest(t)
+	for _, end := range []int64{0, -1, -1 << 63} {
+		t.Run(fmt.Sprint(end), func(t *testing.T) {
+			before := common.GetTimestamp()
+			payload := callChannelUsage(t, fmt.Sprintf("end_timestamp=%d", end))
+			after := common.GetTimestamp()
+			assert.GreaterOrEqual(t, payload.Data.StartTimestamp, before-model.ChannelUsageRetentionSeconds)
+			assert.LessOrEqual(t, payload.Data.EndTimestamp, after)
+			assert.Less(t, payload.Data.StartTimestamp, payload.Data.EndTimestamp)
+			assert.LessOrEqual(t, payload.Data.EndTimestamp-payload.Data.StartTimestamp, model.ChannelUsageRetentionSeconds)
+		})
+	}
+}
+
 func TestGetChannelUsageDefaultsToTheLastSevenDays(t *testing.T) {
 	setupChannelUsageControllerTest(t)
 	now := common.GetTimestamp()

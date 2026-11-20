@@ -21,8 +21,10 @@ package model
 
 import (
 	"context"
+	"errors"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -178,6 +180,75 @@ func TestRecordChannelUsageNamesTheSelectedChannelKey(t *testing.T) {
 	require.Len(t, channelUsageCache, 1)
 	for _, row := range channelUsageCache {
 		assert.Equal(t, ChannelKeyFingerprint("sk-channel-key"), row.KeyFingerprint)
+	}
+}
+
+func TestSaveChannelUsageCacheRetriesFailedWritesWithNewAttempts(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			db := setupChannelUsageDB(t, dialect)
+			resetChannelUsageCache(t)
+			params := ChannelUsageLogParams{
+				ChannelId: 51, ModelName: "gpt-4o", NodeName: "n1",
+				CreatedAt: 1_700_000_000, Success: true, PromptTokens: 10, Quota: 100,
+			}
+			LogChannelUsage(params)
+			LogChannelUsage(params)
+
+			writeErr := errors.New("temporary channel usage write failure")
+			var newAttempt sync.Once
+			const callback = "test:channel_usage_write_failure"
+			require.NoError(t, db.Callback().Update().Before("gorm:update").Register(callback, func(tx *gorm.DB) {
+				if tx.Statement.Schema == nil || tx.Statement.Schema.Name != "ChannelUsageData" {
+					return
+				}
+				newAttempt.Do(func() {
+					failure := params
+					failure.Success = false
+					failure.PromptTokens = 0
+					failure.Quota = 0
+					LogChannelUsage(failure)
+				})
+				tx.AddError(writeErr)
+			}))
+			t.Cleanup(func() { db.Callback().Update().Remove(callback) })
+			require.ErrorIs(t, SaveChannelUsageCache(), writeErr)
+			require.NoError(t, db.Callback().Update().Remove(callback))
+
+			require.NoError(t, SaveChannelUsageCache())
+			// A further flush must not count the recovered batch again.
+			require.NoError(t, SaveChannelUsageCache())
+			var rows []ChannelUsageData
+			require.NoError(t, db.Find(&rows).Error)
+			require.Len(t, rows, 1)
+			assert.Equal(t, 3, rows[0].RequestCount)
+			assert.Equal(t, 2, rows[0].SuccessCount)
+			assert.Equal(t, 1, rows[0].FailureCount)
+			assert.EqualValues(t, 20, rows[0].PromptTokens)
+			assert.Equal(t, 200, rows[0].Quota)
+		})
+	}
+}
+
+func TestSaveChannelUsageRowReportsInsertFailure(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			db := setupChannelUsageDB(t, dialect)
+			writeErr := errors.New("channel usage insert rejected")
+			const callback = "test:channel_usage_insert_failure"
+			require.NoError(t, db.Callback().Create().Before("gorm:create").Register(callback, func(tx *gorm.DB) {
+				if tx.Statement.Schema != nil && tx.Statement.Schema.Name == "ChannelUsageData" {
+					tx.AddError(writeErr)
+				}
+			}))
+			t.Cleanup(func() { db.Callback().Create().Remove(callback) })
+
+			err := saveChannelUsageRow(&ChannelUsageData{
+				ChannelId: 52, ModelName: "gpt-4o", CreatedAt: 1_700_000_000,
+				RequestCount: 1, SuccessCount: 1,
+			})
+			assert.ErrorIs(t, err, writeErr)
+		})
 	}
 }
 
@@ -393,6 +464,27 @@ func TestDeleteChannelUsageByChannelIdsRemovesWholeChannels(t *testing.T) {
 	channelUsageCacheLock.Lock()
 	assert.Empty(t, channelUsageCache, "buffered rows of a deleted channel go too")
 	channelUsageCacheLock.Unlock()
+}
+
+func TestDeleteOrphanedChannelUsageReportsDeleteFailureWithoutChannels(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			db := setupChannelUsageDB(t, dialect)
+			require.NoError(t, db.Create(&ChannelUsageData{ChannelId: 42, ModelName: "m"}).Error)
+			deleteErr := errors.New("channel usage cleanup rejected")
+			const callback = "test:channel_usage_delete_failure"
+			require.NoError(t, db.Callback().Delete().Before("gorm:delete").Register(callback, func(tx *gorm.DB) {
+				if tx.Statement.Schema != nil && tx.Statement.Schema.Name == "ChannelUsageData" {
+					tx.AddError(deleteErr)
+				}
+			}))
+			t.Cleanup(func() { db.Callback().Delete().Remove(callback) })
+
+			deleted, err := DeleteOrphanedChannelUsage(context.Background())
+			assert.ErrorIs(t, err, deleteErr)
+			assert.Zero(t, deleted)
+		})
+	}
 }
 
 func TestDeleteOrphanedChannelUsageRemovesDeletedChannels(t *testing.T) {

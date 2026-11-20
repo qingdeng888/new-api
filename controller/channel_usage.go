@@ -89,16 +89,10 @@ func GetChannelUsage(c *gin.Context) {
 	// Clamp both bounds into the answerable window, then keep the interval
 	// forward, so no caller can make the answer describe a future range or one
 	// longer than the retention.
-	endTime = min(endTime, now)
+	endTime = max(earliest+1, min(endTime, now))
 	startTime = max(min(startTime, now), earliest)
 	if startTime >= endTime {
 		startTime = max(earliest, endTime-1)
-	}
-	if endTime <= startTime {
-		endTime = startTime + 1
-	}
-	if endTime-startTime > model.ChannelUsageRetentionSeconds {
-		startTime = endTime - model.ChannelUsageRetentionSeconds
 	}
 	channelId, _ := strconv.Atoi(c.Query("channel_id"))
 

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -105,6 +105,8 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  client.clear()
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -159,6 +161,79 @@ describe('channel usage panel', () => {
     await waitFor(() =>
       expect(screen.queryByText(/Key #1/)).not.toBeInTheDocument()
     )
+  })
+
+  it.each(['business failure', 'network failure'])(
+    'shows a retryable error instead of empty usage after a %s',
+    async (failure) => {
+      const user = userEvent.setup()
+      if (failure === 'business failure') {
+        vi.mocked(api.get).mockResolvedValueOnce({
+          data: { success: false, message: 'Channel usage unavailable' },
+        })
+      } else {
+        vi.mocked(api.get).mockRejectedValueOnce(
+          new Error('Channel usage unavailable')
+        )
+      }
+      renderPanel()
+
+      expect(await screen.findByText('Channel usage unavailable')).toBeVisible()
+      expect(screen.queryByText('No data')).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Retry' }))
+      expect(await findChannelToggle('multi-key')).toBeVisible()
+    }
+  )
+
+  it('refreshes the rolling time window when channel usage is refetched', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const openedAt = Date.parse('2026-11-20T00:00:00Z')
+    vi.setSystemTime(openedAt)
+    renderPanel()
+    await findChannelToggle('multi-key')
+    expect(api.get).toHaveBeenLastCalledWith('/api/data/channels', {
+      params: {
+        start_timestamp: openedAt / 1000 - 7 * 24 * 3600,
+        end_timestamp: openedAt / 1000,
+      },
+    })
+
+    const refreshedAt = Date.parse('2026-11-20T00:02:00Z')
+    vi.setSystemTime(refreshedAt)
+    await act(async () => {
+      await client.invalidateQueries({
+        queryKey: ['dashboard', 'channel-usage'],
+      })
+    })
+
+    expect(api.get).toHaveBeenLastCalledWith('/api/data/channels', {
+      params: {
+        start_timestamp: refreshedAt / 1000 - 7 * 24 * 3600,
+        end_timestamp: refreshedAt / 1000,
+      },
+    })
+  })
+
+  it('requests the selected rolling window when the range tab changes', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const now = Date.parse('2026-11-20T00:00:00Z')
+    vi.setSystemTime(now)
+    const user = userEvent.setup()
+    renderPanel()
+    await findChannelToggle('multi-key')
+
+    const tab = screen.getByRole('tab', { name: '1 Day' })
+    await user.click(tab)
+
+    await waitFor(() =>
+      expect(api.get).toHaveBeenLastCalledWith('/api/data/channels', {
+        params: {
+          start_timestamp: now / 1000 - 24 * 3600,
+          end_timestamp: now / 1000,
+        },
+      })
+    )
+    expect(tab).toHaveAttribute('aria-selected', 'true')
   })
 
   it('shows an empty state when the window holds no usage', async () => {

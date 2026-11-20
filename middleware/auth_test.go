@@ -114,6 +114,70 @@ func TestTokenAuthReadOnlyTranslatesErrors(t *testing.T) {
 	}
 }
 
+func TestTokenAuthReadOnlyEnforcesClientRestrictions(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	for _, tc := range []struct {
+		name, clients, userAgent string
+		enabled                  bool
+		status                   int
+		wantStatus               int
+	}{
+		{name: "unrestricted unknown client", userAgent: "curl/8.0", wantStatus: http.StatusNoContent},
+		{name: "allowed client", enabled: true, clients: "deepseek_harness", userAgent: "deepseek-harness/1.0", wantStatus: http.StatusNoContent},
+		{name: "different known client", enabled: true, clients: "deepseek_harness", userAgent: "claude-cli/2.0", wantStatus: http.StatusForbidden},
+		{name: "missing client headers", enabled: true, clients: "deepseek_harness", wantStatus: http.StatusForbidden},
+		{name: "unknown client", enabled: true, clients: "deepseek_harness", userAgent: "curl/8.0", wantStatus: http.StatusForbidden},
+		{name: "empty allowlist", enabled: true, userAgent: "deepseek-harness/1.0", wantStatus: http.StatusForbidden},
+		{name: "unknown stored client", enabled: true, clients: "unsupported", userAgent: "deepseek-harness/1.0", wantStatus: http.StatusForbidden},
+		{name: "expired key allowed client", enabled: true, clients: "deepseek_harness", userAgent: "deepseek-harness/1.0", status: common.TokenStatusExpired, wantStatus: http.StatusNoContent},
+		{name: "expired key denied client", enabled: true, clients: "deepseek_harness", userAgent: "curl/8.0", status: common.TokenStatusExpired, wantStatus: http.StatusForbidden},
+		{name: "exhausted key allowed client", enabled: true, clients: "deepseek_harness", userAgent: "deepseek-harness/1.0", status: common.TokenStatusExhausted, wantStatus: http.StatusNoContent},
+		{name: "exhausted key denied client", enabled: true, clients: "deepseek_harness", userAgent: "curl/8.0", status: common.TokenStatusExhausted, wantStatus: http.StatusForbidden},
+		{name: "disabled key allowed client", enabled: true, clients: "deepseek_harness", userAgent: "deepseek-harness/1.0", status: common.TokenStatusDisabled, wantStatus: http.StatusUnauthorized},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setupDashboardAuthMiddlewareTest(t)
+			require.NoError(t, model.DB.AutoMigrate(&model.Token{}))
+			t.Setenv("LOG_SQL_DSN", "")
+			require.NoError(t, model.InitLogDB())
+			user := createMiddlewarePATUser(t, "readonly-client-owner", "readonly-client-pat")
+			token := &model.Token{
+				UserId: user.Id, Key: "readonlyclientkey", Name: "restricted key",
+				Status: common.TokenStatusEnabled, ExpiredTime: -1,
+				ClientLimitsEnabled: tc.enabled, ClientLimits: tc.clients,
+			}
+			if tc.status != 0 {
+				token.Status = tc.status
+			}
+			if tc.status == common.TokenStatusExpired {
+				token.ExpiredTime = 1
+			}
+			require.NoError(t, model.DB.Create(token).Error)
+
+			router := gin.New()
+			for _, path := range []string{"/api/usage/token/", "/api/log/token"} {
+				router.GET(path, TokenAuthReadOnly(), func(c *gin.Context) {
+					assert.Equal(t, user.Id, c.GetInt("id"))
+					assert.Equal(t, token.Id, c.GetInt("token_id"))
+					c.Status(http.StatusNoContent)
+				})
+			}
+			for _, path := range []string{"/api/usage/token/", "/api/log/token"} {
+				request := httptest.NewRequest(http.MethodGet, path, nil)
+				request.Header.Set("Authorization", "Bearer sk-"+token.Key)
+				request.Header.Set("User-Agent", tc.userAgent)
+				request.Header.Set("Accept-Language", "en-US")
+				response := httptest.NewRecorder()
+				router.ServeHTTP(response, request)
+				assert.Equal(t, tc.wantStatus, response.Code, "%s: %s", path, response.Body.String())
+				if tc.wantStatus == http.StatusForbidden {
+					assert.JSONEq(t, `{"success":false,"message":"This token does not allow the client that sent the request"}`, response.Body.String(), path)
+				}
+			}
+		})
+	}
+}
+
 func TestUserAuthAllowsOpaqueDottedPAT(t *testing.T) {
 	setupDashboardAuthMiddlewareTest(t)
 	user := createMiddlewarePATUser(t, "dotted-pat-user", "opaque.key.with-dots")
